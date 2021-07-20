@@ -470,3 +470,46 @@ def feature_engineering_neighbors_EXT_SOURCE(dataframe):
     dataframe['TARGET_NEIGHBORS_500_MEAN'] = [
         dataframe['TARGET'].iloc[ele].mean() for ele in train_500_neighbors]
 
+
+# --------------------------------------------------------------------
+# -- FEATURE ENGINEERING : super variable gagnant concours kaggle
+# --------------------------------------------------------------------
+
+
+def feature_engineering_neighbors_EXT_SOURCE_test(application_train, application_test):
+    '''
+     - Imputation de la moyenne des 500 valeurs cibles des voisins les plus
+       proches pour chaque application du train set ou test set.
+     - Les voisins sont calculés en utilisant :
+       - les variables très importantes :
+       - EXT_SOURCE-1,
+       - EXT_SOURCE_2
+       - et EXT_SOURCE_3,
+     - et CREDIT_ANNUITY_RATIO (ratio du Montant du crédit du prêt / Annuité de prêt).
+     [Source](https://www.kaggle.com/c/home-credit-default-risk/discussion/64821)
+     Inputs: dataframe pour lequel on veut ajouter la variable des 500 plus
+             proches voisins.
+     Returns:
+         None
+     '''
+
+    knn = KNeighborsClassifier(500, n_jobs=-1)
+
+    train_data_for_neighbors = application_train[[
+        'EXT_SOURCE_1', 'EXT_SOURCE_2', 'EXT_SOURCE_3', 'CREDIT_ANNUITY_RATIO'
+    ]].fillna(0)
+
+    train_target = application_train.TARGET
+    test_data_for_neighbors = application_test[[
+        'EXT_SOURCE_1', 'EXT_SOURCE_2', 'EXT_SOURCE_3', 'CREDIT_ANNUITY_RATIO'
+    ]].fillna(0)
+
+    knn.fit(train_data_for_neighbors, train_target)
+
+    test_500_neighbors = knn.kneighbors(test_data_for_neighbors)[1]
+
+    application_test['TARGET_NEIGHBORS_500_MEAN'] = [
+        application_train['TARGET'].iloc[ele].mean()
+        for ele in test_500_neighbors
+    ]
+    
