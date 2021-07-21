@@ -513,3 +513,47 @@ def feature_engineering_neighbors_EXT_SOURCE_test(application_train, application
         for ele in test_500_neighbors
     ]
     
+
+
+def agg_var_num(dataframe, group_var, dict_agg, prefix):
+    """
+    Aggregates the numeric values in a dataframe.
+    This can be used to create features for each instance of the grouping variable.
+    Parameters
+    --------
+        dataframe (dataframe): the dataframe to calculate the statistics on
+        group_var (string): the variable by which to group df
+        df_name (string): the variable used to rename the columns
+    Return
+    --------
+        agg (dataframe): 
+            a dataframe with the statistics aggregated for 
+            all numeric columns. Each instance of the grouping variable will have 
+            some statistics (mean, min, max, sum ...) calculated. 
+            The columns are also renamed to keep track of features created.
+    
+    """
+    # Remove id variables other than grouping variable
+    for col in dataframe:
+        if col != group_var and 'SK_ID' in col:
+            dataframe = dataframe.drop(columns=col)
+
+    group_ids = dataframe[group_var]
+    numeric_df = dataframe.select_dtypes('number')
+    numeric_df[group_var] = group_ids
+
+    # Group by the specified variable and calculate the statistics
+    agg = numeric_df.groupby(group_var).agg(dict_agg)
+
+    # Ajout suffix mean, sum...
+    agg.columns = ['_'.join(tup).strip().upper()
+                   for tup in agg.columns.values]
+
+    # Ajout du prefix bureau_balance pour avoir une idée du fichier
+    agg.columns = [prefix + '_' + col
+                   if col != group_var else col
+                   for col in agg.columns]
+
+    agg.reset_index(inplace=True)
+
+    return agg
