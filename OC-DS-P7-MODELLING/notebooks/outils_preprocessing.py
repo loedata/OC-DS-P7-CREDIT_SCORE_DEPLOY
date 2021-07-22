@@ -10,7 +10,7 @@
 # ====================================================================
 # from IPython.core.display import display
 # from datetime import datetime
-# impor1t pandas as pd
+import pandas as pd
 import numpy as np
 import pickle
 from sklearn.neighbors import KNeighborsClassifier
@@ -513,3 +513,164 @@ def feature_engineering_neighbors_EXT_SOURCE_test(application_train, application
         for ele in test_500_neighbors
     ]
     
+
+# --------------------------------------------------------------------
+# -- AGGREGATION DES VARIABLES STATISTIQUES des VAR QUANTITATIVES
+# --------------------------------------------------------------------
+
+def agg_var_num(dataframe, group_var, dict_agg, prefix):
+    """
+    Aggregates the numeric values in a dataframe.
+    This can be used to create features for each instance of the grouping variable.
+    Parameters
+    --------
+        dataframe (dataframe): the dataframe to calculate the statistics on
+        group_var (string): the variable by which to group df
+        df_name (string): the variable used to rename the columns
+    Return
+    --------
+        agg (dataframe): 
+            a dataframe with the statistics aggregated for 
+            all numeric columns. Each instance of the grouping variable will have 
+            some statistics (mean, min, max, sum ...) calculated. 
+            The columns are also renamed to keep track of features created.
+    
+    """
+    # Remove id variables other than grouping variable
+    for col in dataframe:
+        if col != group_var and 'SK_ID' in col:
+            dataframe = dataframe.drop(columns=col)
+
+    group_ids = dataframe[group_var]
+    numeric_df = dataframe.select_dtypes('number')
+    numeric_df[group_var] = group_ids
+
+    # Group by the specified variable and calculate the statistics
+    agg = numeric_df.groupby(group_var).agg(dict_agg)
+
+    # Ajout suffix mean, sum...
+    agg.columns = ['_'.join(tup).strip().upper()
+                   for tup in agg.columns.values]
+
+    # Ajout du prefix bureau_balance pour avoir une idée du fichier
+    agg.columns = [prefix + '_' + col
+                   if col != group_var else col
+                   for col in agg.columns]
+
+    agg.reset_index(inplace=True)
+
+    return agg
+
+
+# --------------------------------------------------------------------
+# -- AGGREGATION DES VARIABLES STATISTIQUES des VAR QUALITATIVES
+# --------------------------------------------------------------------
+
+def agg_var_cat(dataframe, group_var, prefix):
+    '''
+        Aggregates the categorical features in a child dataframe
+        for each observation of the parent variable.
+        
+        Parameters
+        --------
+        - dataframe        : pandas dataframe
+                    The dataframe to calculate the value counts for.
+            
+        - parent_var : string
+                    The variable by which to group and aggregate 
+                    the dataframe. For each unique value of this variable, 
+                    the final dataframe will have one row
+            
+        - prefix    : string
+                    Variable added to the front of column names 
+                    to keep track of columns
+
+        Return
+        --------
+        categorical : pandas dataframe
+                    A dataframe with aggregated statistics for each observation 
+                    of the parent_var
+                    The columns are also renamed and columns with duplicate values 
+                    are removed.
+    '''
+    
+    # Select the categorical columns
+    categorical = pd.get_dummies(dataframe.select_dtypes('object'))
+
+    # Make sure to put the identifying id on the column
+    categorical[group_var] = dataframe[group_var]
+
+    # Groupby the group var and calculate the sum and mean
+    categorical = categorical.groupby(group_var).agg(['sum', 'count', 'mean'])
+    
+    column_names = []
+    
+    # Iterate through the columns in level 0
+    for var in categorical.columns.levels[0]:
+        # Iterate through the stats in level 1
+        for stat in ['sum', 'count', 'mean']:
+            # Make a new column name
+            column_names.append('%s_%s_%s' % (prefix, var, stat))
+    
+    categorical.columns = column_names
+    
+    # Remove duplicate columns by values
+    # _, idx = np.unique(categorical, axis = 1, return_index = True)
+    # categorical = categorical.iloc[:, idx]
+    
+    return categorical
+
+# --------------------------------------------------------------------
+# -- AGGREGATION DES VARIABLES STATISTIQUES des VAR QUANTITATIVES
+# -- PAR MOYENNE PAR SK_ID_CURR de prêts
+# --------------------------------------------------------------------
+
+def agg_moy_par_pret(dataframe, group_var, prefix):
+    """Aggregates the numeric values in a dataframe. This can
+    be used to create features for each instance of the grouping variable.
+    
+    Parameters
+    --------
+        dataframe (dataframe): 
+            the dataframe to calculate the statistics on
+        group_var (string): 
+            the variable by which to group df
+        prefix (string): 
+            the variable used to rename the columns
+        
+    Return
+    --------
+        agg (dataframe): 
+            a dataframe with the statistics aggregated for 
+            all numeric columns. Each instance of the grouping variable will have 
+            the statistics (mean, min, max, sum; currently supported) calculated. 
+            The columns are also renamed to keep track of features created.
+    
+    """
+    # Remove id variables other than grouping variable
+    for col in dataframe:
+        if col != group_var and 'SK_ID' in col:
+            dataframe = dataframe.drop(columns = col)
+            
+    group_ids = dataframe[group_var]
+    numeric_df = dataframe.select_dtypes('number')
+    numeric_df[group_var] = group_ids
+
+    # Group by the specified variable and calculate the statistics
+    agg = numeric_df.groupby(group_var).agg(['mean']).reset_index()
+
+    # Need to create new column names
+    columns = [group_var]
+
+    # Iterate through the variables names
+    for var in agg.columns.levels[0]:
+        # Skip the grouping variable
+        if var != group_var:
+            # Iterate through the stat names
+            for stat in agg.columns.levels[1][:-1]:
+                # Make a new column name for the variable and stat
+                columns.append('%s_%s_%s' % (prefix, var, stat))
+
+    agg.columns = columns
+    
+    return agg

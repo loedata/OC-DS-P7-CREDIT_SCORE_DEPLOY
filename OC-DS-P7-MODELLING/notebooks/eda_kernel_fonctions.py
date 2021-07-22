@@ -108,7 +108,7 @@ def load_all_tables(directory_path='', verbose=True):
     if verbose:
         print("--------------------------------------------------------------------")
         print(
-            f'Chargement des 9 jeux de donnees termineéen {datetime.now() - start} secondes')
+            f'Chargement des 9 jeux de donnees terminée en {datetime.now() - start} secondes')
 
     return application_train, application_test, bureau, bureau_balance, \
         cc_balance, installments_payments, POS_CASH_balance, previous_application, \
