@@ -674,3 +674,37 @@ def agg_moy_par_pret(dataframe, group_var, prefix):
     agg.columns = columns
     
     return agg
+
+# --------------------------------------------------------------------
+# -- GESTION DES VARIABLES FORTEMENT COLINEAIRES
+# --------------------------------------------------------------------
+
+def suppr_var_colineaire(dataframe, seuil=0.8):
+    '''
+    Récupération de la liste des variables fortement corrélées supérieur
+    au seuil transmis.
+    Parameters
+    ----------
+    dataframe : dataframe à analyser, obligatoire.
+    seuil : le seuil de colinéarité entre les variables (0.8 par défaut).
+    Returns
+    -------
+    cols_corr_a_supp : liste des variables à supprimer.
+    '''
+    
+    # Matrice de corrélation avec valeur absolue pour ne pas avoir à gérer
+    # les corrélations positives et négatives séparément
+    corr = dataframe.corr().abs()
+    # On ne conserve que la partie supérieur à la diagonale pour n'avoir
+    # qu'une seule fois les corrélations prisent en compte (symétrie axiale)
+    corr_triangle = corr.where(np.triu(np.ones(corr.shape), k=1)
+                               .astype(np.bool))
+    
+    # Variables avec un coef de Pearson > 0.8?
+    cols_corr_a_supp = [var for var in corr_triangle.columns
+                        if any(corr_triangle[var] > seuil)]
+    print(f'{len(cols_corr_a_supp)} variables fortement corrélées à supprimer :\n')
+    for var in cols_corr_a_supp:
+        print(var)
+        
+    return cols_corr_a_supp

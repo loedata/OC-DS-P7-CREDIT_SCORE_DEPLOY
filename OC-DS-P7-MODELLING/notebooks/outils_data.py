@@ -119,6 +119,33 @@ def get_missing_values(df_work, pourcentage, affiche_heatmap, retour=False):
 
     if retour:
         return table
+
+
+def get_missing_values_sup_seuil(df_work, seuil=90):
+    """Retourne les variables qui ont plus que seuil% de valeurs manquantes.
+       @param in : df_work dataframe obligatoire
+                   seuil : seuil (90% par défaut)
+       @param out : cols_nan_a_suppr : liste des variables à supprimer
+    """
+
+    values = df_work.isnull().sum()
+    percentage = 100 * values / len(df_work)
+    table = pd.concat([values, percentage.round(2)], axis=1)
+    table.columns = [
+            'Nombres de valeurs manquantes',
+            '% de valeurs manquantes']
+
+    # Liste des variables ayant plus de 90% de valeurs manquantes
+    cols_nan_a_suppr = table[table['% de valeurs manquantes'] > 90].index \
+        .to_list()
+    nbr_cols_a_suppr = len(cols_nan_a_suppr)
+    if nbr_cols_a_suppr > 0:
+        print(f'{df_work.name} - Nombre de variables à supprimer : {len(cols_nan_a_suppr)}\n')
+        display(cols_nan_a_suppr)
+    else:
+        print(f'{df_work.name} - Aucune variable à supprimer')
+
+    return cols_nan_a_suppr
     
 # --------------------------------------------------------------------
 # -- TRACE DES DIMENSIONS D'UN DATAFRAME
