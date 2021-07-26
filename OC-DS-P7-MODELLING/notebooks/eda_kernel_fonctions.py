@@ -18,6 +18,8 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
+import lightgbm as lgb
+from sklearn.model_selection import train_test_split
 
 import phik
 
@@ -41,6 +43,10 @@ pd.set_option('max_rows', None)
 # --------------------------------------------------------------------
 __version__ = '0.0.0'
 
+
+# ===========================================================================
+# == PARTIE EDA
+# ===========================================================================
 
 # --------------------------------------------------------------------
 # -- CHARGEMENT DES JEUX DE DONNÉES
@@ -978,3 +984,110 @@ def plot_barplot_comp_target(dataframe, feature_name,
     plt.legend(labels=labels,
                bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
     plt.show()
+
+# ===========================================================================
+# == PARTIE FEATURES SELECTION
+# ===========================================================================
+
+
+def plot_feature_importances(df, threshold = 0.9):
+    """
+    Plots 15 most important features and the cumulative importance of features.
+    Prints the number of features needed to reach threshold cumulative importance.
+    Source : 
+    https://www.kaggle.com/willkoehrsen/introduction-to-feature-selection
+    Parameters
+    --------
+    df : dataframe
+        Dataframe of feature importances. Columns must be feature and importance
+    threshold : float, default = 0.9
+        Threshold for prining information about cumulative importances
+    Return
+    --------
+    df : dataframe
+        Dataframe ordered by feature importances with a normalized column (sums to 1)
+        and a cumulative importance column    
+    """
+    
+    plt.rcParams['font.size'] = 18
+    
+    # Sort features according to importance
+    df = df.sort_values('importance', ascending = False).reset_index()
+    
+    # Normalize the feature importances to add up to one
+    df['importance_normalized'] = df['importance'] / df['importance'].sum()
+    df['cumulative_importance'] = np.cumsum(df['importance_normalized'])
+
+    # Make a horizontal bar chart of feature importances
+    plt.figure(figsize = (10, 12))
+    ax = plt.subplot()
+    
+    # Need to reverse the index to plot most important on top
+    ax.barh(list(reversed(list(df.index[:30]))), 
+            df['importance_normalized'].head(30), 
+            align = 'center', edgecolor = 'k')
+    
+    # Set the yticks and labels
+    ax.set_yticks(list(reversed(list(df.index[:30]))))
+    ax.set_yticklabels(df['feature'].head(30))
+    
+    # Plot labeling
+    plt.xlabel('Importance normalisée'); plt.title('Features Importances')
+    plt.show()
+    
+    # Cumulative importance plot
+    plt.figure(figsize = (8, 6))
+    plt.plot(list(range(len(df))), df['cumulative_importance'], 'r-')
+    plt.xlabel('Nombre de variables'); plt.ylabel('Cumulative Importance'); 
+    plt.title('Cumulative Feature Importance');
+    plt.show();
+    
+    importance_index = np.min(np.where(df['cumulative_importance'] > threshold))
+    print('%d variables nécessaires pour %0.2f de cumulative importance' % (importance_index + 1, threshold))
+    
+    return df
+
+def identify_zero_importance_features(train, train_labels, iterations = 2):
+    """
+    Identify zero importance features in a training dataset based on the 
+    feature importances from a gradient boosting model. 
+    
+    Parameters
+    --------
+    train : dataframe
+        Training features
+        
+    train_labels : np.array
+        Labels for training data
+        
+    iterations : integer, default = 2
+        Number of cross validation splits to use for determining feature importances
+    """
+    
+    # Initialize an empty array to hold feature importances
+    feature_importances = np.zeros(train.shape[1])
+
+    # Create the model with several hyperparameters
+    model = lgb.LGBMClassifier(objective='binary', boosting_type = 'goss', n_estimators = 10000, class_weight = 'balanced')
+    
+    # Fit the model multiple times to avoid overfitting
+    for i in range(iterations):
+
+        # Split into training and validation set
+        train_features, valid_features, train_y, valid_y = train_test_split(train, train_labels, test_size = 0.25, random_state = i)
+
+        # Train using early stopping
+        model.fit(train_features, train_y, early_stopping_rounds=100, eval_set = [(valid_features, valid_y)], 
+                  eval_metric = 'auc', verbose = 200)
+
+        # Record the feature importances
+        feature_importances += model.feature_importances_ / iterations
+    
+    feature_importances = pd.DataFrame({'feature': list(train.columns), 'importance': feature_importances}).sort_values('importance', ascending = False)
+    
+    # Find the features with zero importance
+    zero_features = list(feature_importances[feature_importances['importance'] == 0.0]['feature'])
+    print('\nThere are %d features with 0.0 importance' % len(zero_features))
+    
+    return zero_features, feature_importances
+
