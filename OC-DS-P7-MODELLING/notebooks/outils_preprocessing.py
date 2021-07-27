@@ -17,6 +17,7 @@ from sklearn.neighbors import KNeighborsClassifier
 from sklearn.ensemble import RandomForestClassifier
 import lightgbm as lgb
 from boruta import BorutaPy
+from BorutaShap import BorutaShap
 from sklearn.utils import check_random_state
 
 # --------------------------------------------------------------------
@@ -1002,3 +1003,62 @@ def tracer_features_importance(dataframe, df_features_importance, jeu, methode):
 
     # Suivi dimensions
     return df_features_importance
+
+# --------------------------------------------------------------------
+# -- FEATURES SELECTION AVEC BORUTASHAP ET MODELE LIGHTGBM
+# --------------------------------------------------------------------
+
+def features_selection_borutashap_lgbm(dataframe, titre):
+    '''
+    
+    Parameters
+    ----------
+    dataframe : dataframe dont on veut extraire les features importances
+                avec boruta shap et modèle LightGbm, obligatoire.
+    Returns
+    -------
+    df_fs_borutashap : liste des variables avec haute importance selon borutashap.
+
+    '''
+    # Sauvegarde des étiquettes
+    dataframe_labels = dataframe['TARGET']
+    
+    # Suppression des identifiants (variable non utile pour les variables
+    # pertinentes)
+    dataframe = dataframe.drop(columns=['SK_ID_CURR'])
+    dataframe = dataframe.drop(columns=['TARGET'])
+    print(f'train_fs_borutashap : {dataframe.shape}')
+    
+    # Initialisation des variables
+    X = dataframe
+    y = dataframe_labels
+    
+    # Create the model with several hyperparameters
+    lgbm = lgb.LGBMClassifier(objective='binary',
+                              boosting_type='goss',
+                              n_estimators=10000,
+                              class_weight='balanced',
+                              num_boost_round=100)
+    
+    # Initialisation de BorutaShap
+    Feature_Selector = BorutaShap(model=lgbm,
+                                  importance_measure='shap',
+                                  classification=True)
+    
+    # Entraînement
+    Feature_Selector.fit(X=X, y=y, n_trials=100, random_state=0)
+        
+    # Liste des variables confirmées avec une haute importance
+    fs_borshap_lgbm = Feature_Selector.accepted
+    print(f'fs_borshap_lgbm : {fs_borshap_lgbm}') 
+    
+    # Dataframe de features importance avec borutashap
+    df_fs_borshap_lgbm = pd.DataFrame(fs_borshap_lgbm)
+    
+    # Sauvegarde des features importances avec boruta
+    fic_sav_fs_borutashap = \
+        '../sauvegarde/features-selection/' + titre + '.pickle'
+    with open(fic_sav_fs_borutashap, 'wb') as f:
+        pickle.dump(df_fs_borshap_lgbm, f, pickle.HIGHEST_PROTOCOL)
+    
+    return df_fs_borshap_lgbm
