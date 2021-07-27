@@ -14,6 +14,10 @@ import pandas as pd
 import numpy as np
 import pickle
 from sklearn.neighbors import KNeighborsClassifier
+from sklearn.ensemble import RandomForestClassifier
+import lightgbm as lgb
+from boruta import BorutaPy
+from sklearn.utils import check_random_state
 
 # --------------------------------------------------------------------
 # -- VERSION
@@ -708,3 +712,293 @@ def suppr_var_colineaire(dataframe, seuil=0.8):
         print(var)
         
     return cols_corr_a_supp
+
+# --------------------------------------------------------------------
+# -- FEATURES SELECTION AVEC BORUTA ET MODELE RANDOMFOREST
+# --------------------------------------------------------------------
+
+def features_selection_boruta(dataframe, titre):
+    '''
+    
+    Parameters
+    ----------
+    dataframe : dataframe dont on veut extraire les features importances
+                avec boruta, obligatoire.
+    Returns
+    -------
+    df_fs_boruta : liste des variables avec haute importance selon boruta.
+
+    '''
+    # Sauvegarde des étiquettes
+    dataframe_labels = dataframe['TARGET']
+    
+    # Suppression des identifiants (variable non utile pour les variables
+    # pertinentes)
+    dataframe = dataframe.drop(columns=['SK_ID_CURR'])
+    dataframe = dataframe.drop(columns=['TARGET'])
+    print(f'train_fs_boruta : {dataframe.shape}')
+    
+    # Initialisation des variables
+    X = dataframe.values
+    y = dataframe_labels.values.ravel()
+    
+    rf = RandomForestClassifier(n_jobs=-1,
+                            class_weight='balanced',
+                            max_depth=5)
+    
+    # Initialisation de Boruta
+    boruta_feature_selector = BorutaPy(rf,
+                                       n_estimators='auto',
+                                       verbose=2,
+                                       random_state=21,
+                                       max_iter=50,
+                                       perc=90)
+    # Entraînement
+    boruta_feature_selector.fit(X, y)
+    
+    # On applique le modèle sur le dataset
+    X_filtered = boruta_feature_selector.transform(X)
+    print(f'X_transform : {X_filtered.shape}')
+    
+    # Liste des variables confirmées avec une haute importance
+    fs_boruta = list()
+    features = [f for f in dataframe.columns]
+    indexes = np.where(boruta_feature_selector.support_ == True)
+    for x in np.nditer(indexes):
+        fs_boruta.append(features[x])
+    print(f'fs_boruta : {fs_boruta}') 
+    
+    # Dataframe de features importance avec boruta
+    df_fs_boruta = pd.DataFrame(fs_boruta)
+    
+    # Sauvegarde des features importances avec boruta
+    fic_sav_fs_boruta = \
+        '../sauvegarde/features-selection/' + titre + '.pickle'
+    with open(fic_sav_fs_boruta, 'wb') as f:
+        pickle.dump(df_fs_boruta, f, pickle.HIGHEST_PROTOCOL)
+    
+    return df_fs_boruta
+
+
+# --------------------------------------------------------------------
+# -- FEATURES SELECTION AVEC BORUTA ET MODELE LIGHTGBM
+# --------------------------------------------------------------------
+
+def features_selection_boruta_lgbm(dataframe, titre):
+    '''
+    
+    Parameters
+    ----------
+    dataframe : dataframe dont on veut extraire les features importances
+                avec boruta, obligatoire.
+    Returns
+    -------
+    df_fs_boruta : liste des variables avec haute importance selon boruta.
+
+    '''
+    # Sauvegarde des étiquettes
+    dataframe_labels = dataframe['TARGET']
+    
+    # Suppression des identifiants (variable non utile pour les variables
+    # pertinentes)
+    dataframe = dataframe.drop(columns=['SK_ID_CURR'])
+    dataframe = dataframe.drop(columns=['TARGET'])
+    print(f'train_fs_boruta : {dataframe.shape}')
+    
+    # Initialisation des variables
+    X = dataframe.values
+    y = dataframe_labels.values.ravel()
+    
+    # Create the model with several hyperparameters
+    lgbm = lgb.LGBMClassifier(objective='binary',
+                              boosting_type='goss',
+                              n_estimators=10000,
+                              class_weight='balanced',
+                              num_boost_round=100)
+    
+    # Initialisation de Boruta
+    boruta_feature_selector = BorutaPy(lgbm,
+                                       n_estimators='auto',
+                                       verbose=2,
+                                       random_state=21,
+                                       max_iter=50,
+                                       perc=90)
+    # Entraînement
+    boruta_feature_selector.fit(X, y)
+    
+    # On applique le modèle sur le dataset
+    X_filtered = boruta_feature_selector.transform(X)
+    print(f'X_transform : {X_filtered.shape}')
+    
+    # Liste des variables confirmées avec une haute importance
+    fs_boruta = list()
+    features = [f for f in dataframe.columns]
+    indexes = np.where(boruta_feature_selector.support_ == True)
+    for x in np.nditer(indexes):
+        fs_boruta.append(features[x])
+    print(f'fs_boruta : {fs_boruta}') 
+    
+    # Dataframe de features importance avec boruta
+    df_fs_boruta = pd.DataFrame(fs_boruta)
+    
+    # Sauvegarde des features importances avec boruta
+    fic_sav_fs_boruta = \
+        '../sauvegarde/features-selection/' + titre + '.pickle'
+    with open(fic_sav_fs_boruta, 'wb') as f:
+        pickle.dump(df_fs_boruta, f, pickle.HIGHEST_PROTOCOL)
+    
+    return df_fs_boruta
+
+
+class BorutaPyForLGB(BorutaPy):
+    def __init__(self, estimator, n_estimators=1000, perc=100, alpha=0.05,
+                 two_step=True, max_iter=100, random_state=None, verbose=0):
+        super().__init__(estimator, n_estimators, perc, alpha,
+                         two_step, max_iter, random_state, verbose)
+        self._is_lightgbm = 'lightgbm' in str(type(self.estimator))
+        
+    def _fit(self, X, y):
+        # check input params
+        self._check_params(X, y)
+
+        if not isinstance(X, np.ndarray):
+            X = self._validate_pandas_input(X) 
+        if not isinstance(y, np.ndarray):
+            y = self._validate_pandas_input(y)
+
+        self.random_state = check_random_state(self.random_state)
+        # setup variables for Boruta
+        n_sample, n_feat = X.shape
+        _iter = 1
+        # holds the decision about each feature:
+        # 0  - default state = tentative in original code
+        # 1  - accepted in original code
+        # -1 - rejected in original code
+        dec_reg = np.zeros(n_feat, dtype=np.int)
+        # counts how many times a given feature was more important than
+        # the best of the shadow features
+        hit_reg = np.zeros(n_feat, dtype=np.int)
+        # these record the history of the iterations
+        imp_history = np.zeros(n_feat, dtype=np.float)
+        sha_max_history = []
+
+        # set n_estimators
+        if self.n_estimators != 'auto':
+            self.estimator.set_params(n_estimators=self.n_estimators)
+
+        # main feature selection loop
+        while np.any(dec_reg == 0) and _iter < self.max_iter:
+            # find optimal number of trees and depth
+            if self.n_estimators == 'auto':
+                # number of features that aren't rejected
+                not_rejected = np.where(dec_reg >= 0)[0].shape[0]
+                n_tree = self._get_tree_num(not_rejected)
+                self.estimator.set_params(n_estimators=n_tree)
+
+            # make sure we start with a new tree in each iteration
+            if self._is_lightgbm:
+                self.estimator.set_params(random_state=self.random_state.randint(0, 10000))
+            else:
+                self.estimator.set_params(random_state=self.random_state)
+
+            # add shadow attributes, shuffle them and train estimator, get imps
+            cur_imp = self._add_shadows_get_imps(X, y, dec_reg)
+
+            # get the threshold of shadow importances we will use for rejection
+            imp_sha_max = np.percentile(cur_imp[1], self.perc)
+
+            # record importance history
+            sha_max_history.append(imp_sha_max)
+            imp_history = np.vstack((imp_history, cur_imp[0]))
+
+            # register which feature is more imp than the max of shadows
+            hit_reg = self._assign_hits(hit_reg, cur_imp, imp_sha_max)
+
+            # based on hit_reg we check if a feature is doing better than
+            # expected by chance
+            dec_reg = self._do_tests(dec_reg, hit_reg, _iter)
+
+            # print out confirmed features
+            if self.verbose > 0 and _iter < self.max_iter:
+                self._print_results(dec_reg, _iter, 0)
+            if _iter < self.max_iter:
+                _iter += 1
+
+        # we automatically apply R package's rough fix for tentative ones
+        confirmed = np.where(dec_reg == 1)[0]
+        tentative = np.where(dec_reg == 0)[0]
+        # ignore the first row of zeros
+        tentative_median = np.median(imp_history[1:, tentative], axis=0)
+        # which tentative to keep
+        tentative_confirmed = np.where(tentative_median
+                                       > np.median(sha_max_history))[0]
+        tentative = tentative[tentative_confirmed]
+
+        # basic result variables
+        self.n_features_ = confirmed.shape[0]
+        self.support_ = np.zeros(n_feat, dtype=np.bool)
+        self.support_[confirmed] = 1
+        self.support_weak_ = np.zeros(n_feat, dtype=np.bool)
+        self.support_weak_[tentative] = 1
+
+        # ranking, confirmed variables are rank 1
+        self.ranking_ = np.ones(n_feat, dtype=np.int)
+        # tentative variables are rank 2
+        self.ranking_[tentative] = 2
+        # selected = confirmed and tentative
+        selected = np.hstack((confirmed, tentative))
+        # all rejected features are sorted by importance history
+        not_selected = np.setdiff1d(np.arange(n_feat), selected)
+        # large importance values should rank higher = lower ranks -> *(-1)
+        imp_history_rejected = imp_history[1:, not_selected] * -1
+
+        # update rank for not_selected features
+        if not_selected.shape[0] > 0:
+                # calculate ranks in each iteration, then median of ranks across feats
+                iter_ranks = self._nanrankdata(imp_history_rejected, axis=1)
+                rank_medians = np.nanmedian(iter_ranks, axis=0)
+                ranks = self._nanrankdata(rank_medians, axis=0)
+
+                # set smallest rank to 3 if there are tentative feats
+                if tentative.shape[0] > 0:
+                    ranks = ranks - np.min(ranks) + 3
+                else:
+                    # and 2 otherwise
+                    ranks = ranks - np.min(ranks) + 2
+                self.ranking_[not_selected] = ranks
+        else:
+            # all are selected, thus we set feature supports to True
+            self.support_ = np.ones(n_feat, dtype=np.bool)
+
+        self.importance_history_ = imp_history
+
+        # notify user
+        if self.verbose > 0:
+            self._print_results(dec_reg, _iter, 1)
+        return self
+    
+
+def tracer_features_importance(dataframe, df_features_importance, jeu, methode):
+    """
+    Affiche l'étape puis nombre de lignes et de variables pour le dataframe transmis
+    Parameters
+    ----------
+    @param IN : dataframe : DataFrame, obligatoire
+                df_features_importance : dataframe de suivi des dimensions,
+                                         obligatoire
+                jeu : jeu de données train_set, train set avec imputation 1...
+                methode : titre du modèle de feature sélection
+    @param OUT : dataframe de suivi des dimensions
+    """
+    # Nombre de variables retenues lors de la feature selection
+    n_features = dataframe.shape[0]
+    print(f'{jeu} - {methode} : {n_features} variables importantes conservées')
+
+    df_features_importance = \
+        df_features_importance.append({'Jeu_données': jeu,
+                                       'Méthode': methode,
+                                       'Nb_var_importante': n_features},
+                                       ignore_index=True)
+
+    # Suivi dimensions
+    return df_features_importance
