@@ -1,8 +1,5 @@
 OC-DS-P7-MODELLING/data/
 OC-DS-P7-MODELLING/sauvegarde/
 OC-DS-P7-MODELLING/notebooks/aide.txt
-OC-DS-P7-MODELLING/notebooks/features_importances_lightgbm.csv
-OC-DS-P7-MODELLING/notebooks/features_importances_imp1_lightgbm.csv
-OC-DS-P7-MODELLING/notebooks/features_importances_imp2_lightgbm.csv
 OC-DS-P7-MODELLING/notebooks/.ipynb_checkpoints/
 OC-DS-P7-MODELLING/notebooks/__pycache__/
