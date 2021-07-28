@@ -19,6 +19,13 @@ import lightgbm as lgb
 from boruta import BorutaPy
 from BorutaShap import BorutaShap
 from sklearn.utils import check_random_state
+from sklearn.inspection import permutation_importance
+import eli5
+from eli5.sklearn import PermutationImportance
+import matplotlib.pyplot as plt
+from IPython.display import display
+from sklearn.feature_selection import RFECV
+from pprint import pprint
 
 # --------------------------------------------------------------------
 # -- VERSION
@@ -1062,3 +1069,112 @@ def features_selection_borutashap_lgbm(dataframe, titre):
         pickle.dump(df_fs_borshap_lgbm, f, pickle.HIGHEST_PROTOCOL)
     
     return df_fs_borshap_lgbm
+
+
+def plot_permutation_importance_eli5(model, x_test, y_test):
+    '''
+    Affiche les SHAPE VALUES.
+    Parameters
+    ----------
+    model: le modèle de machine learning, obligatoire
+    x_test :le jeu de test de la matrice X, obligatoire
+    y_test :le jeu de test de la target, obligatoire
+    perm : permutation importance
+    -------
+    None.
+    '''
+    perm = PermutationImportance(model, random_state=21).fit(x_test, y_test)
+    display(eli5.show_weights(perm, feature_names=x_test.columns.tolist()))
+    
+    return perm
+    
+# -----------------------------------------------------------------------
+# -- PLOT LES SHAP VALUES AVEC SKLEARN
+# -----------------------------------------------------------------------
+
+
+def plot_permutation_importance(model, x_test, y_test, figsize=(6, 6)):
+    '''
+    Affiche les SHAPE VALUES.
+    Parameters
+    ----------
+    model: le modèle de machine learning, obligatoire
+    x_test :le jeu de test de la matrice X, obligatoire
+    y_test :le jeu de test de la target, obligatoire
+    Returns
+    -------
+    perm_importance : permutation importance
+    '''
+    perm_importance = permutation_importance(model, x_test, y_test)
+
+    sorted_idx = perm_importance.importances_mean.argsort()
+    plt.figure(figsize=figsize)
+    plt.barh(x_test.columns[sorted_idx],
+             perm_importance.importances_mean[sorted_idx])
+    plt.xlabel("Permutation Importance (%)")
+    plt.show()    
+    
+    return perm_importance 
+
+
+# -----------------------------------------------------------------------
+# -- RFE-CV -recursuve feature elimination
+# -----------------------------------------------------------------------
+
+def calcul_plot_rfecv(estimator, X_train, y_train, figsize=(8, 5)):
+    '''
+    Effectuer de la Recursive Feature
+    Parameters
+    ----------
+    estimator : modèle réduit par RFECV, obligatoire.
+    X_train : input du jeu d'entraînement, obligatoire
+    y_train : target du jeu d'entraînement, obligatoire
+    Returns
+    -------
+    features : permutation importance
+    '''
+
+    # RFECV
+    selector = RFECV(estimator=estimator, step=1,
+                     scoring='neg_mean_squared_error', cv=5, verbose=0)
+    selector.fit(X_train, y_train)
+
+    print(f'\nLe nombre optimal de variables est : {selector.n_features_}')
+    features = [f for f, s in zip(X_train.columns, selector.support_) if s]
+    print('\nLes variables sélectionnées sont:')
+    pprint(features)
+
+    # Plot RFECV
+    plt.figure(figsize=(16, 9))
+    plt.title(
+        'RFECV : Recursive Feature Elimination with Cross-Validation',
+        fontsize=18,
+        fontweight='bold',
+        pad=20)
+    plt.xlabel('Nombres de Variables sélectionnées', fontsize=14, labelpad=20)
+    plt.ylabel("Cross validation score (MSE)", fontsize=14, labelpad=20)
+    plt.plot(range(1, len(selector.grid_scores_) + 1),
+             selector.grid_scores_, color='#303F9F', linewidth=3)
+
+    plt.show()
+
+    # Les variables non indispensables
+    print('\nLes variables non indispensables :\n')   
+    pprint(X_train.columns[np.where(selector.support_ == False)[0]])
+
+
+    # Plot importance des variables
+    dset = pd.DataFrame()
+    dset['variables'] = X_train.columns
+    dset['importance'] = selector.estimator_.feature_importances_
+
+    dset = dset.sort_values(by='importance', ascending=True)
+
+    plt.figure(figsize=figsize)
+    plt.barh(y=dset['variables'], width=dset['importance'], color='SteelBlue')
+    plt.title('RFECV - Importances des variables',
+              fontsize=20, fontweight='bold', pad=20)
+    plt.xlabel('Importance', fontsize=14, labelpad=20)
+    plt.show()
+
+    return features
