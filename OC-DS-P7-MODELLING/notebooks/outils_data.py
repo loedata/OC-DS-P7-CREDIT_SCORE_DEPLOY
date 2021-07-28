@@ -294,7 +294,7 @@ def distribution_variables_plages(
     df_cut['%_données'] = [
         (row * 100) / nb_lignes for row in df_cut['nb_données']]
 
-    return df_cut
+    return df_cut.style.hide_index()
 
 # --------------------------------------------------------------------
 # -- PLAGE DE VALEURS MANQUANTES
