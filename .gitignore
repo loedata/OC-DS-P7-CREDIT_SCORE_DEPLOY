@@ -9,3 +9,11 @@ OC-DS-P7-MODELLING/notebooks/test_set.csv
 OC-DS-P7-MODELLING/notebooks/train_imp1_set.csv
 OC-DS-P7-MODELLING/notebooks/train_imp2_set.csv
 OC-DS-P7-MODELLING/notebooks/train_set.csv
+OC-DS-P7-MODELLING/notebooks/train_set.csv
+OC-DS-P7-MODELLING/notebooks/test_set_sans_var_magique.csv
+OC-DS-P7-MODELLING/notebooks/test_set_sans_var_magique_small.csv
+OC-DS-P7-MODELLING/notebooks/train_set_sans_var_magique.csv
+OC-DS-P7-MODELLING/notebooks/train_set_sans_var_magique_small.csv
+OC-DS-P7-MODELLING/notebooks/train_set_small.csv
+OC-DS-P7-MODELLING/notebooks/test_set_small.csv
+OC-DS-P7-MODELLING/notebooks/logs.log
