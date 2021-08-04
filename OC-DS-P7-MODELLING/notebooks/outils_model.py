@@ -5,6 +5,7 @@
 # ====================================================================
 # Outils ML -  projet 4 Openclassrooms
 # Version : 0.0.0 - CRE LR 23/03/2021
+# Version : 0.0.1 - MAJ LR 02/08/2021 P7 classification binaire
 # ====================================================================
 
 import pandas as pd
@@ -39,12 +40,18 @@ import eli5
 from eli5.sklearn import PermutationImportance
 from pprint import pprint
 
+from sklearn.metrics import confusion_matrix, recall_score, fbeta_score, \
+    precision_score, roc_auc_score, average_precision_score
+
 
 # --------------------------------------------------------------------
 # -- VERSION
 # --------------------------------------------------------------------
-__version__ = '0.0.0'
+__version__ = '0.0.1'
 
+# -----------------------------------------------------------------------
+# -- PARTIE 1 : PROJET 4 OPENCLASSROOMS - REGRESSION
+# -----------------------------------------------------------------------
 
 # --------------------------------------------------------------------
 # -- Entrainer/predire modele de regression de base avec cross-validation
@@ -2051,3 +2058,321 @@ def scores(regressor, y_train, y_test, y_train_reg, y_test_reg):
     print(10 * "-")
     print("MdAE score. Train: ", mdae_train_c)
     print("MdAE score. Test: ", mdae_test_c)
+
+# -----------------------------------------------------------------------
+# -- PARTIE 2 : PROJET 7 OPENCLASSROOMS - CLASSIFICATION BINAIRE
+# -----------------------------------------------------------------------
+
+
+# -----------------------------------------------------------------------
+# -- Métrique métier tentant de minimiser le risque d'accord prêt pour la
+# -- banque
+# -----------------------------------------------------------------------
+
+
+def custom_score(y_reel, y_pred, taux_tn=1, taux_fp=0, taux_fn=-10, taux_tp=0):
+    '''
+    Métrique métier tentant de minimiser le risque d'accord prêt pour la
+    banque en pénalisant les faux négatifs.
+    Parameters
+    ----------
+    y_reel : classe réélle, obligatoire (0 ou 1).
+    y_pred : classe prédite, obligatoire (0 ou 1).
+    taux_tn : Taux de vrais négatifs, optionnel (1 par défaut),
+              le prêt est remboursé : la banque gagne de l'argent.
+    taux_fp : Taux de faux positifs, optionnel (0 par défaut),
+               le prêt est refusé par erreur : la banque perd les intérêts,
+               manque à gagner mais ne perd pas réellement d'argent (erreur de
+               type I).
+    taux_fn : Taux de faux négatifs, optionnel (-10 par défaut),
+              le prêt est accordé mais le client fait défaut : la banque perd
+              de l'argent (erreur de type II)..
+    taux_tp : Taux de vrais positifs, optionnel (1 par défaut),
+              Le prêt est refusé à juste titre : la banque ne gagne ni ne perd
+              d'argent.
+    Returns
+    -------
+    score : gain normalisé (entre 0 et 1) un score élevé montre une meilleure
+            performance
+    '''
+    # Matrice de Confusion
+    (tn, fp, fn, tp) = confusion_matrix(y_reel, y_pred).ravel()
+    # Gain total
+    gain_tot = tn * taux_tn + fp * taux_fp + fn * taux_fn + tp * taux_tp
+    # Gain maximum : toutes les prédictions sont correctes
+    gain_max = (fp + tn) * taux_tn + (fn + tp) * taux_tp
+    # Gain minimum : on accorde aucun prêt, la banque ne gagne rien
+    gain_min = (fp + tn) * taux_fp + (fn + tp) * taux_fn
+    
+    custom_score = (gain_tot - gain_min) / (gain_max - gain_min)
+    
+    # Gain normalisé (entre 0 et 1) un score élevé montre une meilleure
+    # performance
+    return custom_score
+
+def custom_score_2(y_reel, y_pred, taux_tn=1, taux_fp=-1, taux_fn=-10, taux_tp=0):
+    '''
+    Métrique métier tentant de minimiser le risque d'accord prêt pour la
+    banque en pénalisant les faux négatifs.
+    Parameters
+    ----------
+    y_reel : classe réélle, obligatoire (0 ou 1).
+    y_pred : classe prédite, obligatoire (0 ou 1).
+    taux_tn : Taux de vrais négatifs, optionnel (1 par défaut),
+              le prêt est remboursé : la banque gagne de l'argent ==>
+              à encourager.
+    taux_fp : Taux de faux positifs, optionnel (0 par défaut),
+               le prêt est refusé par erreur : la banque perd les intérêts,
+               manque à gagner mais ne perd pas réellement d'argent (erreur de
+               type I) ==> à pénaliser.
+    taux_fn : Taux de faux négatifs, optionnel (-10 par défaut),
+              le prêt est accordé mais le client fait défaut : la banque perd
+              de l'argent (erreur de type II). ==> à pénaliser
+    taux_tp : Taux de vrais positifs, optionnel (1 par défaut),
+              Le prêt est refusé à juste titre : la banque ne gagne ni ne perd
+              d'argent.
+    Returns
+    -------
+    score : gain normalisé (entre 0 et 1) un score élevé montre une meilleure
+            performance
+    '''
+    # Matrice de Confusion
+    (tn, fp, fn, tp) = confusion_matrix(y_reel, y_pred).ravel()
+    # Gain total
+    gain_tot = tn * taux_tn + fp * taux_fp + fn * taux_fn + tp * taux_tp
+    # Gain maximum : toutes les prédictions sont correctes
+    gain_max = (fp + tn) * taux_tn + (fn + tp) * taux_tp
+    # Gain minimum : on accorde aucun prêt, la banque ne gagne rien
+    gain_min = (fp + tn) * taux_fp + (fn + tp) * taux_fn
+    
+    custom_score = (gain_tot - gain_min) / (gain_max - gain_min)
+    
+    # Gain normalisé (entre 0 et 1) un score élevé montre une meilleure
+    # performance
+    return custom_score
+
+
+# -----------------------------------------------------------------------
+# -- REGLAGE DU SEUIL DE PROBABILITE
+# -----------------------------------------------------------------------
+
+def determiner_seuil_probabilte(model, y_valid, x_valid, title, n=1):
+    '''
+    Déterminer le seuil de probabilité optimal pour la métrique métier.
+    Parameters
+    ----------
+    model : modèle entraîné, obligatoire.
+    y_valid : valeur réélle.
+    x_valid : données à tester.
+    title : titre pour graphique.
+    n : gain pour la classe 1 (par défaut) ou 0.
+    Returns
+    -------
+    None.
+    '''
+    gain = []
+    seuils = np.linspace(0.0, 1, 20)
+
+    for seuil in seuils:
+
+        # Score du modèle : n = 0 ou 1
+        y_proba = model.predict_proba(x_valid)[:, n]
+
+        # Score > seuil de solvabilité : retourne 1 sinon 0
+        y_pred = (y_proba > seuil)
+        y_pred = np.array(y_pred > 0) * 1
+
+        # Calcul du score de la métrique métier
+        gain.append(custom_score(y_valid, y_pred))
+
+    # Affichage du gain en fonction du seuil de solvabilité
+    plt.figure(figsize=(12, 6))
+    plt.plot(seuils, gain)
+    plt.xlabel('Seuil de probabilité')
+    plt.ylabel('Métrique métier')
+    plt.title(title)
+    plt.xticks(np.linspace(0.1, 1, 10))
+    
+
+# ------------------------------------------------------------------------
+# -- ENTRAINER/PREDIRE/CALCULER SCORES -  MODELE DE CLASSIFICATION BINAIRE
+# ------------------------------------------------------------------------
+
+
+def process_classification(model, X_train, X_valid, y_train, y_valid,
+        df_resultats, titre, affiche_res=True,
+        affiche_matrice_confusion=True):
+    """
+    Lance un modele de classification binaire, effectue cross-validation
+    et sauvegarde des scores.
+    Parameters
+    ----------
+    model : modèle de lassification initialisé, obligatoire.
+    X_train : train set matrice X, obligatoire.
+    X_valid : test set matrice X, obligatoire.
+    y_train : train set vecteur y, obligatoire.
+    y_valid : test set, vecteur y, obligatoire.
+    df_resultats : dataframe sauvegardant les scores, obligatoire
+    titre : titre à inscrire dans le tableau de sauvegarde, obligatoire.
+    affiche_res : affiche le tableau de résultat (optionnel, True par défaut).
+    Returns
+    -------
+    df_resultats : Le dataframe de sauvegarde des performances.
+    y_pred : Les prédictions pour le modèle
+    """
+    # Top début d'exécution
+    time_start = time.time()
+
+    # Entraînement du modèle avec le jeu d'entraînement du jeu d'entrainement
+    model.fit(X_train, y_train)
+
+    # Sauvegarde du modèle de classification entraîné
+    with open('../sauvegarde/modelisation/modele_' + titre + '.pickle', 'wb') as f:
+        pickle.dump(model, f, pickle.HIGHEST_PROTOCOL)
+    
+    # Top fin d'exécution
+    time_end_train = time.time()
+    
+    # Prédictions avec le jeu de validation du jeu d'entraînement
+    y_pred = model.predict(X_valid)
+
+    # Top fin d'exécution
+    time_end = time.time()
+
+    # Probabilités
+    y_proba = model.predict_proba(X_valid)[:, 1]
+    
+    # Calcul des métriques
+    # Rappel/recall sensibilité
+    recall = recall_score(y_valid, y_pred)
+    # Précision
+    precision = precision_score(y_valid, y_pred)
+    # F-mesure ou Fbeta
+    f1_score = fbeta_score(y_valid, y_pred, beta=1)
+    f5_score = fbeta_score(y_valid, y_pred, beta=5)
+    f10_score = fbeta_score(y_valid, y_pred, beta=10)
+    # Score ROC AUC aire sous la courbe ROC
+    roc_auc = roc_auc_score(y_valid, y_proba)
+    # Score PR AUC aire sous la courbe précion/rappel
+    pr_auc = average_precision_score(y_valid, y_proba)
+    # Métrique métier
+    banque_score = custom_score(y_valid, y_pred)
+
+    # durée d'exécution d'entraînement
+    time_exec_train = time_end_train - time_start
+    # durée d'exécution entraînement + validation
+    time_execution = time_end - time_start
+
+    # cross validation
+    scoring = ['roc_auc', 'recall', 'precision']
+    scores = cross_validate(model, X_train, y_train, cv=10,
+                            scoring=scoring, return_train_score=True)
+
+    # Sauvegarde des performances
+    df_resultats = df_resultats.append(pd.DataFrame({
+        'Modèle': [titre],
+        'Rappel': [recall],
+        'Précision': [precision],
+        'F1': [f1_score],
+        'F5': [f5_score],
+        'F10': [f10_score],
+        'ROC_AUC': [roc_auc],
+        'PR_AUC': [pr_auc],
+        'Metier_score': [banque_score],
+        'Durée_train': [time_exec_train],
+        'Durée_tot': [time_execution],
+        # Cross-validation
+        'Train_roc_auc_CV': [scores['train_roc_auc'].mean()],
+        'Train_roc_auc_CV +/-': [scores['train_roc_auc'].std()],
+        'Test_roc_auc_CV': [scores['test_roc_auc'].mean()],
+        'Test_roc_auc_CV +/-': [scores['test_roc_auc'].std()],
+        'Train_recall_CV': [scores['train_recall'].mean()],
+        'Train_recall_CV +/-': [scores['train_recall'].std()],
+        'Test_recall_CV': [scores['test_recall'].mean()],
+        'Test_recall_CV +/-': [scores['test_recall'].std()],
+        'Train_precision_CV': [scores['train_precision'].mean()],
+        'Train_precision_CV +/-': [scores['train_precision'].std()],
+        'Test_precision_CV': [scores['test_precision'].mean()],
+        'Test_precision_CV +/-': [scores['test_precision'].std()],
+    }), ignore_index=True)
+
+    # Sauvegarde du tableau de résultat
+    with open('../sauvegarde/modelisation/df_resultat_scores.pickle', 'wb') as df:
+        pickle.dump(df_resultats, df, pickle.HIGHEST_PROTOCOL)
+    
+    if affiche_res:
+        mask = df_resultats['Modèle'] == titre
+        display(df_resultats[mask].style.hide_index())
+
+    if affiche_matrice_confusion:
+        afficher_matrice_confusion(y_valid, y_pred, titre)
+
+    return df_resultats
+
+# ------------------------------------------------------------------------
+# -- SAUVEGARDE DES TAUX
+# -- TN : vrais négatifs, TP : vrais positifs
+# -- FP : faux positifs, FN : faux négatifs
+# ------------------------------------------------------------------------
+
+def sauvegarger_taux(titre_modele, FN, FP, TN, TP, df_taux):
+    """
+    Lance un modele de classification binaire, effectue cross-validation
+    et sauvegarde des scores.
+    Parameters
+    ----------
+    model : modèle de lassification initialisé, obligatoire.
+    FN : nombre de faux négatifs, obligatoire.
+    FP : nombre de faux positifs, obligatoire.
+    TN : train set vecteur y, obligatoire.
+    TP : test set, vecteur y, obligatoire.
+    df_taux : dataframe sauvegardant les taux, obligatoire
+    titre : titre à inscrire dans le tableau de sauvegarde, obligatoire.
+    Returns
+    -------
+    df_taux : Le dataframe de sauvegarde des taux.
+    """
+
+    # Sauvegarde des performances
+    df_taux = df_taux.append(pd.DataFrame({
+        'Modèle': [titre_modele],
+        'FN': [FN],
+        'FP': [FP],
+        'TN': [TN],
+        'TP': [TP]
+    }), ignore_index=True)
+
+    # Sauvegarde du tableau de résultat
+    with open('../sauvegarde/modelisation/df_taux.pickle', 'wb') as df:
+        pickle.dump(df_taux, df, pickle.HIGHEST_PROTOCOL)
+    
+    return df_taux
+
+
+
+# -----------------------------------------------------------------------
+# -- MATRICE DE CONFUSION DE LA CLASSIFICATION BINAIRE
+# -----------------------------------------------------------------------
+
+def afficher_matrice_confusion(y_true, y_pred, title):
+
+    plt.figure(figsize=(6, 4))
+
+    cm = confusion_matrix(y_true, y_pred)
+    
+    labels = ['Non défaillants', 'Défaillants']
+    
+    sns.heatmap(cm,
+                xticklabels=labels,
+                yticklabels=labels,
+                annot=True,
+                fmt='d',
+                cmap=plt.cm.Blues)
+    plt.title(f'Matrice de confusion de : {title}')
+    plt.ylabel('Classe réelle')
+    plt.xlabel('Classe prédite')
+    plt.show()    
+
+# -----------------------------------------------------------------------
+# -- OPTIMISATION HYPERPARAMETRE 
+# -----------------------------------------------------------------------
