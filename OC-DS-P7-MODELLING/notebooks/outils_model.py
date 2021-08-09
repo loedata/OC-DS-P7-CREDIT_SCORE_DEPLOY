@@ -1584,25 +1584,29 @@ def gbm_gridsearchcv_iterative(param_grid, model, x_train, y_train):
 # -- PLOT LES FEATURES IMPORTANCES
 # -----------------------------------------------------------------------
 
-def plot_features_importance(features_importance, nom_variables):
+def plot_features_importance(features_importance, nom_variables,
+                             figsize=(6, 5)):
     '''
     Affiche le liste des variables avec leurs importances par ordre décroissant.
     Parameters
     ----------
     features_importance: les features importances, obligatoire
     nom_variables : nom des variables, obligatoire
+    figsize : taille du graphique
     Returns
     -------
     None.
     '''
     # BarGraph de visalisation
-    plt.figure(figsize=(6, 5))
+    plt.figure(figsize=figsize)
     plt.barh(nom_variables, features_importance)
+    plt.yticks(fontsize=20)
     plt.xlabel('Feature Importances (%)')
-    plt.ylabel('Variables')
-    plt.title('Comparison des Features Importances')
+    plt.ylabel('Variables', fontsize=18)
+    plt.title('Comparison des Features Importances', fontsize=30)
     plt.show()
 
+    
 # -----------------------------------------------------------------------
 # -- PLOT LES SHAP VALUES
 # -----------------------------------------------------------------------
@@ -2069,8 +2073,7 @@ def scores(regressor, y_train, y_test, y_train_reg, y_test_reg):
 # -- banque
 # -----------------------------------------------------------------------
 
-
-def custom_score(y_reel, y_pred, taux_tn=1, taux_fp=0, taux_fn=-10, taux_tp=0):
+def custom_score(y_reel, y_pred, taux_tn=1, taux_fp=-5, taux_fn=-20, taux_tp=0):
     '''
     Métrique métier tentant de minimiser le risque d'accord prêt pour la
     banque en pénalisant les faux négatifs.
@@ -2156,52 +2159,109 @@ def custom_score_2(y_reel, y_pred, taux_tn=1, taux_fp=-1, taux_fn=-10, taux_tp=0
 # -- REGLAGE DU SEUIL DE PROBABILITE
 # -----------------------------------------------------------------------
 
-def determiner_seuil_probabilte(model, y_valid, x_valid, title, n=1):
+def determiner_seuil_probabilite(model, X_valid, y_valid, title, n=1):
     '''
     Déterminer le seuil de probabilité optimal pour la métrique métier.
     Parameters
     ----------
     model : modèle entraîné, obligatoire.
     y_valid : valeur réélle.
-    x_valid : données à tester.
+    X_valid : données à tester.
     title : titre pour graphique.
     n : gain pour la classe 1 (par défaut) ou 0.
     Returns
     -------
     None.
     '''
-    gain = []
-    seuils = np.linspace(0.0, 1, 20)
-
+    seuils = np.arange(0, 1, 0.01)
+    sav_gains = []
+ 
     for seuil in seuils:
 
         # Score du modèle : n = 0 ou 1
-        y_proba = model.predict_proba(x_valid)[:, n]
+        y_proba = model.predict_proba(X_valid)[:, n]
 
         # Score > seuil de solvabilité : retourne 1 sinon 0
         y_pred = (y_proba > seuil)
-        y_pred = np.array(y_pred > 0) * 1
-
-        # Calcul du score de la métrique métier
-        gain.append(custom_score(y_valid, y_pred))
+        y_pred = np.multiply(y_pred, 1)
+        
+        # Sauvegarde du score de la métrique métier
+        sav_gains.append(custom_score(y_valid, y_pred))
+    
+    df_score = pd.DataFrame({'Seuils' : seuils,
+                             'Gains' : sav_gains})
+    
+    # Score métrique métier maximal
+    gain_max = df_score['Gains'].max()
+    print(f'Score métrique métier maximal : {gain_max}')
+    # Seuil optimal pour notre métrique
+    seuil_max = df_score.loc[df_score['Gains'].argmax(), 'Seuils']
+    print(f'Seuil maximal : {seuil_max}')
 
     # Affichage du gain en fonction du seuil de solvabilité
     plt.figure(figsize=(12, 6))
-    plt.plot(seuils, gain)
+    plt.plot(seuils, sav_gains)
     plt.xlabel('Seuil de probabilité')
     plt.ylabel('Métrique métier')
     plt.title(title)
     plt.xticks(np.linspace(0.1, 1, 10))
-    
 
+    
+def determiner_seuil_probabilite_F10(model, X_valid, y_valid, title, n=1):
+    '''
+    Déterminer le seuil de probabilité optimal pour la métrique métier.
+    Parameters
+    ----------
+    model : modèle entraîné, obligatoire.
+    y_valid : valeur réélle.
+    X_valid : données à tester.
+    title : titre pour graphique.
+    n : gain pour la classe 1 (par défaut) ou 0.
+    Returns
+    -------
+    None.
+    '''
+    seuils = np.arange(0, 1, 0.01)
+    scores_F10 = []
+ 
+    for seuil in seuils:
+
+        # Score du modèle : n = 0 ou 1
+        y_proba = model.predict_proba(X_valid)[:, n]
+
+        # Score > seuil de solvabilité : retourne 1 sinon 0
+        y_pred = (y_proba > seuil)
+        y_pred = np.multiply(y_pred, 1)
+        
+        # Sauvegarde du score de la métrique métier
+        scores_F10.append(fbeta_score(y_valid, y_pred, 10))
+    
+    df_score = pd.DataFrame({'Seuils' : seuils,
+                             'Gains' : scores_F10})
+    
+    # Score métrique métier maximal
+    gain_max = df_score['Gains'].max()
+    print(f'Score F10 maximal : {gain_max}')
+    # Seuil optimal pour notre métrique
+    seuil_max = df_score.loc[df_score['Gains'].argmax(), 'Seuils']
+    print(f'Seuil maximal : {seuil_max}')
+
+    # Affichage du gain en fonction du seuil de solvabilité
+    plt.figure(figsize=(12, 6))
+    plt.plot(seuils, scores_F10)
+    plt.xlabel('Seuil de probabilité')
+    plt.ylabel('Score F10')
+    plt.title(title)
+    plt.xticks(np.linspace(0.1, 1, 10))
+    
 # ------------------------------------------------------------------------
 # -- ENTRAINER/PREDIRE/CALCULER SCORES -  MODELE DE CLASSIFICATION BINAIRE
 # ------------------------------------------------------------------------
 
 
 def process_classification(model, X_train, X_valid, y_train, y_valid,
-        df_resultats, titre, affiche_res=True,
-        affiche_matrice_confusion=True):
+                           df_resultats, titre, affiche_res=True,
+                           affiche_matrice_confusion=True):
     """
     Lance un modele de classification binaire, effectue cross-validation
     et sauvegarde des scores.
@@ -2309,13 +2369,128 @@ def process_classification(model, X_train, X_valid, y_train, y_valid,
 
     return df_resultats
 
+def process_classification_seuil(model, seuil, X_train, X_valid, y_train,
+                                 y_valid, df_res_seuil, titre,
+                                 affiche_res=True,
+                                 affiche_matrice_confusion=True):
+    """
+    Lance un modele de classification binaire, effectue cross-validation
+    et sauvegarde des scores.
+    Parameters
+    ----------
+    model : modèle de lassification initialisé, obligatoire.
+    seuil : seuil de probabilité optimal.
+    X_train : train set matrice X, obligatoire.
+    X_valid : test set matrice X, obligatoire.
+    y_train : train set vecteur y, obligatoire.
+    y_valid : test set, vecteur y, obligatoire.
+    df_res_seuil : dataframe sauvegardant les scores, obligatoire
+    titre : titre à inscrire dans le tableau de sauvegarde, obligatoire.
+    affiche_res : affiche le tableau de résultat (optionnel, True par défaut).
+    Returns
+    -------
+    df_resultats : Le dataframe de sauvegarde des performances.
+    y_pred : Les prédictions pour le modèle
+    """
+    # Top début d'exécution
+    time_start = time.time()
+
+    # Entraînement du modèle avec le jeu d'entraînement du jeu d'entrainement
+    model.fit(X_train, y_train)
+
+    # Sauvegarde du modèle de classification entraîné
+    with open('../sauvegarde/modelisation/modele_' + titre + '.pickle', 'wb') as f:
+        pickle.dump(model, f, pickle.HIGHEST_PROTOCOL)
+    
+    # Top fin d'exécution
+    time_end_train = time.time()
+    
+    # Score du modèle : n = 0 ou 1
+    # Probabilités
+    y_proba = model.predict_proba(X_valid)[:, 1]
+
+    # Prédictions avec le jeu de validation du jeu d'entraînement
+    # Score > seuil de probabilité : retourne 1 sinon 0
+    y_pred = (y_proba > seuil)
+    y_pred = np.multiply(y_pred, 1)
+
+    # Top fin d'exécution
+    time_end = time.time()
+
+    # Calcul des métriques
+    # Rappel/recall sensibilité
+    recall = recall_score(y_valid, y_pred)
+    # Précision
+    precision = precision_score(y_valid, y_pred)
+    # F-mesure ou Fbeta
+    f1_score = fbeta_score(y_valid, y_pred, beta=1)
+    f5_score = fbeta_score(y_valid, y_pred, beta=5)
+    f10_score = fbeta_score(y_valid, y_pred, beta=10)
+    # Score ROC AUC aire sous la courbe ROC
+    roc_auc = roc_auc_score(y_valid, y_proba)
+    # Score PR AUC aire sous la courbe précion/rappel
+    pr_auc = average_precision_score(y_valid, y_proba)
+    # Métrique métier
+    banque_score = custom_score(y_valid, y_pred)
+
+    # durée d'exécution d'entraînement
+    time_exec_train = time_end_train - time_start
+    # durée d'exécution entraînement + validation
+    time_execution = time_end - time_start
+
+    # cross validation
+    scoring = ['roc_auc', 'recall', 'precision']
+    scores = cross_validate(model, X_train, y_train, cv=10,
+                            scoring=scoring, return_train_score=True)
+
+    # Sauvegarde des performances
+    df_res_seuil = df_res_seuil.append(pd.DataFrame({
+        'Modèle': [titre],
+        'Rappel': [recall],
+        'Précision': [precision],
+        'F1': [f1_score],
+        'F5': [f5_score],
+        'F10': [f10_score],
+        'ROC_AUC': [roc_auc],
+        'PR_AUC': [pr_auc],
+        'Metier_score': [banque_score],
+        'Durée_train': [time_exec_train],
+        'Durée_tot': [time_execution],
+        # Cross-validation
+        'Train_roc_auc_CV': [scores['train_roc_auc'].mean()],
+        'Train_roc_auc_CV +/-': [scores['train_roc_auc'].std()],
+        'Test_roc_auc_CV': [scores['test_roc_auc'].mean()],
+        'Test_roc_auc_CV +/-': [scores['test_roc_auc'].std()],
+        'Train_recall_CV': [scores['train_recall'].mean()],
+        'Train_recall_CV +/-': [scores['train_recall'].std()],
+        'Test_recall_CV': [scores['test_recall'].mean()],
+        'Test_recall_CV +/-': [scores['test_recall'].std()],
+        'Train_precision_CV': [scores['train_precision'].mean()],
+        'Train_precision_CV +/-': [scores['train_precision'].std()],
+        'Test_precision_CV': [scores['test_precision'].mean()],
+        'Test_precision_CV +/-': [scores['test_precision'].std()],
+    }), ignore_index=True)
+
+    # Sauvegarde du tableau de résultat
+    with open('../sauvegarde/modelisation/df_res_seuil.pickle', 'wb') as df:
+        pickle.dump(df_res_seuil, df, pickle.HIGHEST_PROTOCOL)
+    
+    if affiche_res:
+        mask = df_res_seuil['Modèle'] == titre
+        display(df_res_seuil[mask].style.hide_index())
+
+    if affiche_matrice_confusion:
+        afficher_matrice_confusion(y_valid, y_pred, titre)
+
+    return df_res_seuil
+
 # ------------------------------------------------------------------------
 # -- SAUVEGARDE DES TAUX
 # -- TN : vrais négatifs, TP : vrais positifs
 # -- FP : faux positifs, FN : faux négatifs
 # ------------------------------------------------------------------------
 
-def sauvegarger_taux(titre_modele, FN, FP, TN, TP, df_taux):
+def sauvegarder_taux(titre_modele, FN, FP, TP, TN, df_taux):
     """
     Lance un modele de classification binaire, effectue cross-validation
     et sauvegarde des scores.
@@ -2338,8 +2513,8 @@ def sauvegarger_taux(titre_modele, FN, FP, TN, TP, df_taux):
         'Modèle': [titre_modele],
         'FN': [FN],
         'FP': [FP],
-        'TN': [TN],
-        'TP': [TP]
+        'TP': [TP],
+        'TN': [TN]
     }), ignore_index=True)
 
     # Sauvegarde du tableau de résultat
