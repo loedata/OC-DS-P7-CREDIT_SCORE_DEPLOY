@@ -1597,68 +1597,20 @@ def plot_features_importance(features_importance, nom_variables,
     -------
     None.
     '''
+    df_feat_imp = pd.DataFrame({'feature': nom_variables,
+                                'importance': features_importance})
+    df_feat_imp_tri = df_feat_imp.sort_values(by='importance')
+    
     # BarGraph de visalisation
     plt.figure(figsize=figsize)
-    plt.barh(nom_variables, features_importance)
+    plt.barh(df_feat_imp_tri['feature'], df_feat_imp_tri['importance'])
     plt.yticks(fontsize=20)
     plt.xlabel('Feature Importances (%)')
     plt.ylabel('Variables', fontsize=18)
     plt.title('Comparison des Features Importances', fontsize=30)
     plt.show()
-
     
-# -----------------------------------------------------------------------
-# -- PLOT LES SHAP VALUES
-# -----------------------------------------------------------------------
 
-
-def plot_shape_values(model, x_test):
-    '''
-    Affiche les SHAPE VALUES.
-    Parameters
-    ----------
-    model: le modèle de machine learning, obligatoire
-    x_test :le jeu de test de la matrice X, obligatoire
-    Returns
-    -------
-    None.
-    '''
-    explainer = shap.TreeExplainer(model)
-    shap_values = explainer.shap_values(x_test)
-
-    shap.summary_plot(shap_values, x_test, plot_type="bar")
-
-    shap.summary_plot(shap_values, x_test)
-
-    # shap.initjs()
-    # shap.force_plot(explainer.expected_value, shap_values[1,:], X_test_log.iloc[1,:])
-
-# -----------------------------------------------------------------------
-# -- PLOT LES SHAP VALUES AVEC SKLEARN
-# -----------------------------------------------------------------------
-
-
-def plot_permutation_importance(model, x_test, y_test):
-    '''
-    Affiche les SHAPE VALUES.
-    Parameters
-    ----------
-    model: le modèle de machine learning, obligatoire
-    x_test :le jeu de test de la matrice X, obligatoire
-    y_test :le jeu de test de la target, obligatoire
-    Returns
-    -------
-    None.
-    '''
-    perm_importance = permutation_importance(model, x_test, y_test)
-
-    sorted_idx = perm_importance.importances_mean.argsort()
-    plt.figure(figsize=(6, 6))
-    plt.barh(x_test.columns[sorted_idx],
-             perm_importance.importances_mean[sorted_idx])
-    plt.xlabel("Permutation Importance (%)")
-    plt.show()
-    
 def plot_cumultative_feature_importance(df, threshold = 0.9):
     """
     Plots 15 most important features and the cumulative importance of features.
@@ -1716,6 +1668,61 @@ def plot_cumultative_feature_importance(df, threshold = 0.9):
     print('%d variables nécessaires pour %0.2f de cummulative imortance' % (importance_index + 1, threshold))
     
     return df
+
+    
+# -----------------------------------------------------------------------
+# -- PLOT LES SHAP VALUES
+# -----------------------------------------------------------------------
+
+
+def plot_shape_values(model, x_test):
+    '''
+    Affiche les SHAPE VALUES.
+    Parameters
+    ----------
+    model: le modèle de machine learning, obligatoire
+    x_test :le jeu de test de la matrice X, obligatoire
+    Returns
+    -------
+    None.
+    '''
+    explainer = shap.TreeExplainer(model)
+    shap_values = explainer.shap_values(x_test)
+
+    shap.summary_plot(shap_values, x_test, plot_type="bar")
+
+    shap.summary_plot(shap_values, x_test)
+
+    # shap.initjs()
+    # shap.force_plot(explainer.expected_value, shap_values[1,:], X_test_log.iloc[1,:])
+
+# -----------------------------------------------------------------------
+# -- PLOT LES SHAP VALUES AVEC SKLEARN
+# -----------------------------------------------------------------------
+
+
+def plot_permutation_importance(model, x_test, y_test):
+    '''
+    Affiche les SHAPE VALUES.
+    Parameters
+    ----------
+    model: le modèle de machine learning, obligatoire
+    x_test :le jeu de test de la matrice X, obligatoire
+    y_test :le jeu de test de la target, obligatoire
+    Returns
+    -------
+    None.
+    '''
+    perm_importance = permutation_importance(model, x_test, y_test)
+
+    sorted_idx = perm_importance.importances_mean.argsort()
+    plt.figure(figsize=(6, 6))
+    plt.barh(x_test.columns[sorted_idx],
+             perm_importance.importances_mean[sorted_idx])
+    plt.xlabel("Permutation Importance (%)")
+    plt.show()
+    
+
 
 # -----------------------------------------------------------------------
 # -- PLOT LES SHAP VALUES AVEC ELI5
@@ -2212,6 +2219,64 @@ def custom_score_2(y_reel, y_pred, taux_tn=1, taux_fp=-1, taux_fn=-10, taux_tp=0
     # performance
     return custom_score
 
+def custom_score_3(y_reel, y_pred, taux_tn=0.2, taux_fp=-0.2, taux_fn=-0.7, taux_tp=0):
+    '''
+    Métrique métier tentant de minimiser le risque d'accord prêt pour la
+    banque en pénalisant les faux négatifs.
+    Les 2 précédentes n'ayant pas donner les résultats excomptés, on va
+    raisonner en terme de coût pour la banque.
+    TN : Les clients prédits non-défaillants et qui sont bien non-défaillants
+         La banque accorde le prêt.
+         Ils ont remboursé, la banque gagne S
+    TP : Les clients prédits défaillants qui sont bien défaillants.
+         La banque n'a pas accordé de prêt ==> pas de gain, ni gagné ni perdu
+         d'argent.
+    FN : Les clients prédits non-défaillants mais qui sont défaillants.
+         La banque accorde le prêt.
+         Ils n'ont pas tout remboursé, hypothèse en moyenne ils remboursent un
+         tiers avant d'être défaillants ==> perte de 70% du montant du crédit.
+    FP : Les clients prédits défaillants mais qui sont non-défaillants.
+         La banque n'accorde pas le prêt ==> perte des 20% d'intérêt que les
+         clients auraient remboursé.
+    Donc le gain de la banque :
+        gain = 
+         
+    Parameters
+    ----------
+    y_reel : classe réélle, obligatoire (0 ou 1).
+    y_pred : classe prédite, obligatoire (0 ou 1).
+    taux_tn : Taux de vrais négatifs, optionnel (1 par défaut),
+              le prêt est remboursé : la banque gagne de l'argent ==>
+              à encourager.
+    taux_fp : Taux de faux positifs, optionnel (0 par défaut),
+               le prêt est refusé par erreur : la banque perd les intérêts,
+               manque à gagner mais ne perd pas réellement d'argent (erreur de
+               type I) ==> à pénaliser.
+    taux_fn : Taux de faux négatifs, optionnel (-10 par défaut),
+              le prêt est accordé mais le client fait défaut : la banque perd
+              de l'argent (erreur de type II). ==> à pénaliser
+    taux_tp : Taux de vrais positifs, optionnel (1 par défaut),
+              Le prêt est refusé à juste titre : la banque ne gagne ni ne perd
+              d'argent.
+    Returns
+    -------
+    score : gain normalisé (entre 0 et 1) un score élevé montre une meilleure
+            performance
+    '''
+    # Matrice de Confusion
+    (tn, fp, fn, tp) = confusion_matrix(y_reel, y_pred).ravel()
+    # Gain total
+    gain_tot = tn * taux_tn + fp * taux_fp + fn * taux_fn + tp * taux_tp
+    # Gain maximum : toutes les prédictions sont correctes
+    gain_max = (fp + tn) * taux_tn + (fn + tp) * taux_tp
+    # Gain minimum : on accorde aucun prêt, la banque ne gagne rien
+    gain_min = (fp + tn) * taux_fp + (fn + tp) * taux_fn
+    
+    custom_score = (gain_tot - gain_min) / (gain_max - gain_min)
+    
+    # Gain normalisé (entre 0 et 1) un score élevé montre une meilleure
+    # performance
+    return custom_score
 
 # -----------------------------------------------------------------------
 # -- REGLAGE DU SEUIL DE PROBABILITE
