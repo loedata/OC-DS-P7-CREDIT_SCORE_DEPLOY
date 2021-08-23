@@ -258,7 +258,7 @@ def feature_engineering_application(data):
     data['REGION_RATING_MAX'] = [max(ele1, ele2) for ele1, ele2 in zip(
         data['REGION_RATING_CLIENT'], data['REGION_RATING_CLIENT_W_CITY'])]
     # Min : plus faible note de la région/ville où vit le client
-    data['REGION_RATING_MAX'] = [min(ele1, ele2) for ele1, ele2 in zip(
+    data['REGION_RATING_MIN'] = [min(ele1, ele2) for ele1, ele2 in zip(
         data['REGION_RATING_CLIENT'], data['REGION_RATING_CLIENT_W_CITY'])]
     # Moyenne : des notes de la région et de la ville où vit le client
     data['REGION_RATING_MEAN'] = (

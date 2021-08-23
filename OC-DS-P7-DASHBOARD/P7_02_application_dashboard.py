@@ -28,23 +28,30 @@ import plotly.graph_objects as go
 import matplotlib.pyplot as plt
 import matplotlib.lines as mlines
 import seaborn as sns
+import shap
 
 # ====================================================================
 # VARIABLES STATIQUES
 # ====================================================================
 # Répertoire de sauvegarde du meilleur modèle
-FILE_BEST_MODELE = 'resources/best_model.pickle'
+FILE_BEST_MODELE = 'resources/modele/best_model.pickle'
 # Répertoire de sauvegarde des dataframes nécessaires au dashboard
+# Test set brut original
+FILE_APPLICATION_TEST = 'resources/data/application_test.pickle'
+# Test set pré-procédé
+FILE_TEST_SET = 'resources/data/test_set.pickle'
 # Dashboard
-FILE_DASHBOARD = 'resources/df_dashboard.pickle'
+FILE_DASHBOARD = 'resources/data/df_dashboard.pickle'
 # Client
-FILE_CLIENT_INFO = 'resources/df_info_client.pickle'
-FILE_CLIENT_PRET = 'resources/df_pret_client.pickle'
+FILE_CLIENT_INFO = 'resources/data/df_info_client.pickle'
+FILE_CLIENT_PRET = 'resources/data/df_pret_client.pickle'
 # 10 plus proches voisins du train set
-FILE_VOISINS_INFO = 'resources/df_info_voisins.pickle'
-FILE_VOISIN_PRET = 'resources/df_pret_voisins.pickle'
-FILE_VOISIN_AGG = 'resources/df_voisin_train_agg.pickle'
-FILE_ALL_TRAIN_AGG = 'resources/df_all_train_agg.pickle'
+FILE_VOISINS_INFO = 'resources/data/df_info_voisins.pickle'
+FILE_VOISIN_PRET = 'resources/data/df_pret_voisins.pickle'
+FILE_VOISIN_AGG = 'resources/data/df_voisin_train_agg.pickle'
+FILE_ALL_TRAIN_AGG = 'resources/data/df_all_train_agg.pickle'
+# Shap values
+FILE_SHAP_VALUES = 'resources/data/shap_values.pickle'
 
 # ====================================================================
 # VARIABLES GLOBALES
@@ -84,10 +91,10 @@ group_val4 = ['CAR_EMPLOYED_RATIO_MEAN', 'CODE_GENDER_MEAN',
 # ====================================================================
 # IMAGES
 # ====================================================================
-# Loge de l'entreprise
-logo =  Image.open("resources/logo.png") 
+# Logo de l'entreprise
+logo =  Image.open("resources/images/logo.png") 
 # Légende des courbes
-lineplot_legende =  Image.open("resources/lineplot_legende.png") 
+lineplot_legende =  Image.open("resources/images/lineplot_legende.png") 
 
 # ====================================================================
 # HTML MARKDOWN
@@ -98,6 +105,7 @@ html_BUREAU_CURRENT_CREDIT_DEBT_DIFF_MEAN = "<h4 style='text-align: center'>BURE
 html_INST_PAY_AMT_INSTALMENT_SUM = "<h4 style='text-align: center'>INST_PAY_AMT_INSTALMENT_SUM</h4> <br/> <h5 style='text-align: center'>Somme du montant de l'acompte prescrit des crédits précédents sur cet acompte</h5> <hr/>" 
 html_BUREAU_CURRENT_DEBT_TO_CREDIT_RATIO_MEAN = "<h4 style='text-align: center'>BUREAU_CURRENT_DEBT_TO_CREDIT_RATIO_MEAN</h4> <br/> <h5 style='text-align: center'>Moyenne du ratio des prêts précédents sur d'autres institution de : la dette actuelle sur le crédit et la limite de crédit actuelle de la carte de crédit (valeur * 100)</h5> <hr/>" 
 html_CAR_EMPLOYED_RATIO = "<h4 style='text-align: center'>CAR_EMPLOYED_RATIO</h4> <br/> <h5 style='text-align: center'>Ratio : Âge de la voiture du demandeur / Ancienneté dans l'emploi à la date de la demande (valeur * 1000)</h5> <hr/>" 
+html_CODE_GENDER = "<h4 style='text-align: center'>CODE_GENDER</h4> <br/> <h5 style='text-align: center'>Sexe</h5> <hr/>" 
 html_CREDIT_ANNUITY_RATIO = "<h4 style='text-align: center'>CREDIT_ANNUITY_RATIO</h4> <br/> <h5 style='text-align: center'>Ratio : montant du crédit du prêt / Annuité de prêt</h5> <hr/>" 
 html_CREDIT_GOODS_RATIO = "<h4 style='text-align: center'>CREDIT_GOODS_RATIO</h4> <br/> <h5 style='text-align: center'>Ratio : Montant du crédit du prêt / prix des biens pour lesquels le prêt est accordé / Crédit est supérieur au prix des biens ? (valeur * 100)</h5> <hr/>" 
 html_YEAR_BIRTH = "<h4 style='text-align: center'>YEAR_BIRTH</h4> <br/> <h5 style='text-align: center'>Âge (ans)</h5> <hr/>" 
@@ -107,7 +115,9 @@ html_EXT_SOURCE_2 = "<h4 style='text-align: center'>EXT_SOURCE_2</h4> <br/> <h5 
 html_EXT_SOURCE_3 = "<h4 style='text-align: center'>EXT_SOURCE_3</h4> <br/> <h5 style='text-align: center'>Source externe normalisée (valeur * 100)</h5> <hr/>" 
 html_EXT_SOURCE_MAX = "<h4 style='text-align: center'>EXT_SOURCE_MAX</h4> <br/> <h5 style='text-align: center'>Valeur maximale des 3 sources externes normalisées (EXT_SOURCE_1, EXT_SOURCE_2 et EXT_SOURCE_3) (valeur * 100)</h5> <hr/>" 
 html_EXT_SOURCE_SUM = "<h4 style='text-align: center'>EXT_SOURCE_SUM</h4> <br/> <h5 style='text-align: center'>Somme des 3 sources externes normalisées (EXT_SOURCE_1, EXT_SOURCE_2 et EXT_SOURCE_3, valeur * 100)</h5> <hr/>" 
+html_FLAG_OWN_CAR = "<h4 style='text-align: center'>FLAG_OWN_CAR</h4> <br/> <h5 style='text-align: center'>Indicateur si le client possède une voiture</h5> <hr/>" 
 html_INST_PAY_DAYS_PAYMENT_RATIO_MAX = "<h4 style='text-align: center'>INST_PAY_DAYS_PAYMENT_RATIO_MAX</h4> <br/> <h5 style='text-align: center'>Valeur maximal dans l'historique des précédents crédits remboursés dans Home Crédit du ratio : La date à laquelle le versement du crédit précédent était censé être payé (par rapport à la date de demande du prêt actuel) \ Quand les échéances du crédit précédent ont-elles été effectivement payées (par rapport à la date de demande du prêt</h5> <hr/>" 
+html_NAME_EDUCATION_TYPE_HIGHER_EDUCATION = "<h4 style='text-align: center'>NAME_EDUCATION_TYPE_HIGHER_EDUCATION</h4> <br/> <h5 style='text-align: center'>Niveau d'éducation le plus élévé</h5> <hr/>" 
 html_POS_CASH_NAME_CONTRACT_STATUS_ACTIVE_SUM = "<h4 style='text-align: center'>POS_CASH_NAME_CONTRACT_STATUS_ACTIVE_SUM</h4> <br/> <h5 style='text-align: center'>Somme des contrats actifs au cours du mois</h5> <hr/>" 
 html_PREV_APP_INTEREST_SHARE_MAX = "<h4 style='text-align: center'>PREV_APP_INTEREST_SHARE_MAX</h4> <br/> <h5 style='text-align: center'>La valeur maximale de tous les précédents crédit dans d'autres institution : de la durée du crédit multiplié par l'annuité du prêt moins le montant final du crédit</h5> <hr/>" 
 
@@ -166,55 +176,60 @@ def load():
     with st.spinner('Import des données'):
         
         # Import du dataframe des informations des traits stricts du client
-        fic_client_info = FILE_CLIENT_INFO
-        with open(fic_client_info, 'rb') as df_info_client:
+        with open(FILE_CLIENT_INFO, 'rb') as df_info_client:
             df_info_client = pickle.load(df_info_client)
             
         # Import du dataframe des informations sur le prêt du client
-        fic_client_pret = FILE_CLIENT_PRET
-        with open(fic_client_pret, 'rb') as df_pret_client:
+        with open(FILE_CLIENT_PRET, 'rb') as df_pret_client:
             df_pret_client = pickle.load(df_pret_client)
             
         # Import du dataframe des informations des traits stricts des voisins
-        fic_voisin_info = FILE_VOISINS_INFO
-        with open(fic_voisin_info, 'rb') as df_info_voisins:
+        with open(FILE_VOISINS_INFO, 'rb') as df_info_voisins:
             df_info_voisins = pickle.load(df_info_voisins)
             
         # Import du dataframe des informations sur le prêt des voisins
-        fic_voisin_pret = FILE_VOISIN_PRET
-        with open(fic_voisin_pret, 'rb') as df_pret_voisins:
+        with open(FILE_VOISIN_PRET, 'rb') as df_pret_voisins:
             df_pret_voisins = pickle.load(df_pret_voisins)
 
         # Import du dataframe des informations sur le dashboard
-        fic_dashboard = FILE_DASHBOARD
-        with open(fic_dashboard, 'rb') as df_dashboard:
+        with open(FILE_DASHBOARD, 'rb') as df_dashboard:
             df_dashboard = pickle.load(df_dashboard)
 
         # Import du dataframe des informations sur les voisins aggrégés
-        fic_voisin_train_agg = FILE_VOISIN_AGG
-        with open(fic_voisin_train_agg, 'rb') as df_voisin_train_agg:
+        with open(FILE_VOISIN_AGG, 'rb') as df_voisin_train_agg:
             df_voisin_train_agg = pickle.load(df_voisin_train_agg)
 
         # Import du dataframe des informations sur les voisins aggrégés
-        fic_all_train_agg = FILE_ALL_TRAIN_AGG
-        with open(fic_all_train_agg, 'rb') as df_all_train_agg:
+        with open(FILE_ALL_TRAIN_AGG, 'rb') as df_all_train_agg:
             df_all_train_agg = pickle.load(df_all_train_agg)
 
+        # Import du dataframe du test set nettoyé et pré-procédé
+        with open(FILE_TEST_SET, 'rb') as df_test_set:
+            test_set = pickle.load(df_test_set)
+
+        # Import du dataframe du test set brut original
+        with open(FILE_APPLICATION_TEST, 'rb') as df_application_test:
+            application_test = pickle.load(df_application_test)
+
+        # Import du dataframe du test set brut original
+        with open(FILE_SHAP_VALUES, 'rb') as shap_values:
+            shap_values = pickle.load(shap_values)
+            
     # Import du meilleur modèle lgbm entrainé
     with st.spinner('Import du modèle'):
         
         # Import du meilleur modèle lgbm entrainé
-        fic_best_model = FILE_BEST_MODELE
-        with open(fic_best_model, 'rb') as model_lgbm:
+        with open(FILE_BEST_MODELE, 'rb') as model_lgbm:
             best_model = pickle.load(model_lgbm)
-  
-       
+         
     return df_info_client, df_pret_client, df_info_voisins, df_pret_voisins, \
-        df_dashboard, df_voisin_train_agg, df_all_train_agg, best_model
+        df_dashboard, df_voisin_train_agg, df_all_train_agg, test_set, \
+            application_test, shap_values, best_model
 
 # Chargement des dataframes et du modèle
 df_info_client, df_pret_client, df_info_voisins, df_pret_voisins, \
-    df_dashboard, df_voisin_train_agg, df_all_train_agg, best_model = load()
+    df_dashboard, df_voisin_train_agg, df_all_train_agg, test_set, \
+            application_test, shap_values, best_model = load()
 
 
 # ====================================================================
@@ -245,15 +260,15 @@ with st.container():
                                    df_info_voisins['ID_CLIENT'].unique())
     with col2:
         # Infos principales client
-        st.write("*Traits stricts*")
+        # st.write("*Traits stricts*")
         client_info = df_info_client[df_info_client['SK_ID_CURR'] == client_id].iloc[:, :]
         client_info.set_index('SK_ID_CURR', inplace=True)
-        st.dataframe(client_info)
+        st.table(client_info)
         # Infos principales sur la demande de prêt
-        st.write("*Demande de prêt*")
+        # st.write("*Demande de prêt*")
         client_pret = df_pret_client[df_pret_client['SK_ID_CURR'] == client_id].iloc[:, :]
         client_pret.set_index('SK_ID_CURR', inplace=True)
-        st.dataframe(client_pret)
+        st.table(client_pret)
 
 
 # ====================================================================
@@ -275,14 +290,27 @@ html_score="""
 
 st.markdown(html_score, unsafe_allow_html=True)
 
-# Préparation des données à afficher dans la jauge ==========================
-# Score du client en pourcentage
-score_client = int(np.rint(df_dashboard[
-    df_dashboard['SK_ID_CURR'] == client_id]['SCORE_CLIENT_%']))
+# Préparation des données à afficher dans la jauge ==============================================
 
-# Score moyen des 10 plus proches voisins du test set en pourcentage
+# ============== Score du client en pourcentage ==> en utilisant le modèle ======================
+# Sélection des variables du clients
+X_test = test_set[test_set['SK_ID_CURR'] == client_id]
+# Score des prédictions de probabiltés
+y_proba = best_model.predict_proba(X_test.drop('SK_ID_CURR', axis=1))[:, 1]
+# Score du client en pourcentage arrondi et nombre entier
+score_client = int(np.rint(y_proba * 100))
+
+# ============== Score moyen des 10 plus proches voisins du test set en pourcentage =============
 score_moy_voisins_test = int(np.rint(df_dashboard[
     df_dashboard['SK_ID_CURR'] == client_id]['SCORE_10_VOISINS_MEAN_TEST'] * 100))
+
+# ============== Pourcentage de clients voisins défaillants dans l'historique des clients =======
+pourc_def_voisins_train = int(np.rint(df_dashboard[
+    df_dashboard['SK_ID_CURR'] == client_id]['%_NB_10_VOISINS_DEFAILLANT_TRAIN']))
+
+# ============== Pourcentage de clients voisins défaillants prédits parmi les nouveaux clients ==
+pourc_def_voisins_test = int(np.rint(df_dashboard[
+    df_dashboard['SK_ID_CURR'] == client_id]['%_NB_10_VOISINS_DEFAILLANT_TEST']))
 
 # Graphique de jauge du cédit score ==========================================
 fig_jauge = go.Figure(go.Indicator(
@@ -345,68 +373,22 @@ with st.container():
             st.error(score_text)
         st.write("")    
         st.markdown(f'Crédit score moyen des 10 clients similaires : **{score_moy_voisins_test}**')
-
-# # ====================================================================
-# # CLIENTS SIMILAIRES
-# # ====================================================================
-
-# html_clients_similaires="""
-#     <div class="card">
-#       <div class="card-body" style="border-radius: 10px 10px 0px 0px;
-#                   background: #DEC7CB; padding-top: 5px; width: auto;
-#                   height: 40px;">
-#         <h3 class="card-title" style="background-color:#DEC7CB; color:Crimson;
-#                    font-family:Georgia; text-align: center; padding: 0px 0;">
-#           Clients similaires
-#         </h3>
-#       </div>
-#     </div>
-#     """
-
-# st.markdown(html_clients_similaires, unsafe_allow_html=True)
-
-# with st.expander('Traits stricts'):
-#         # Infos principales clients similaires
-#         voisins_info = df_info_voisins[df_info_voisins['ID_CLIENT'] == client_id].iloc[:, 1:]
-#         voisins_info.set_index('INDEX_VOISIN', inplace=True)
-#         st.dataframe(voisins_info)
-
-# with st.expander('Demande de prêt'):
-#         # Infos principales sur la demande de prêt
-#         voisins_pret = df_pret_voisins[df_pret_voisins['ID_CLIENT'] == client_id].iloc[:, 1:]
-#         voisins_pret.set_index('INDEX_VOISIN', inplace=True)
-#         st.dataframe(voisins_pret)
-
-# # with st.expander('Demande de prêt'):
-
-
-# ====================================================================
-# 
-# ====================================================================
-
-
-# ====================================================================
-# 
-# ====================================================================
-
-
-# ====================================================================
-# 
-# ====================================================================
-
-
-# with st.form(key='my_form'):
-#     text_input = st.text_input(label='Enter some text')
-#     submit_button = st.form_submit_button(label='Submit')
-
-# with st.expander('Choix du client'):
-#     st.write('Juicy deets')
-    
+        st.markdown(f'**{pourc_def_voisins_train}**% de clients voisins rééllement défaillants dans l\'historique')
+        st.markdown(f'**{pourc_def_voisins_test}**% de clients voisins défaillants prédits pour les nouveaux clients')
     
 # ====================================================================
 # SIDEBAR
 # ====================================================================
 
+# Toutes Les informations non modifiées du client courant
+df_client_origin = application_test[application_test['SK_ID_CURR'] == client_id]
+
+# Toutes Les informations non modifiées du client courant
+df_client_test = test_set[test_set['SK_ID_CURR'] == client_id]
+
+# Les informations pré-procédées du client courant
+df_client_courant = df_dashboard[df_dashboard['SK_ID_CURR'] == client_id]
+                        
 # --------------------------------------------------------------------
 # LOGO
 # --------------------------------------------------------------------
@@ -414,6 +396,40 @@ with st.container():
 st.sidebar.image(logo, width=240, caption=" Dashboard - Aide à la décision",
                  use_column_width='always')
 
+# --------------------------------------------------------------------
+# PLUS INFORMATIONS
+# --------------------------------------------------------------------
+def all_infos_clients():
+    ''' Affiche toutes les informations sur le client courant
+    '''
+    html_all_infos_clients="""
+        <div class="card">
+            <div class="card-body" style="border-radius: 10px 10px 0px 0px;
+                  background: #DEC7CB; padding-top: 5px; width: auto;
+                  height: 40px;">
+                  <h3 class="card-title" style="background-color:#DEC7CB; color:Crimson;
+                      font-family:Georgia; text-align: center; padding: 0px 0;">
+                      Plus infos
+                  </h3>
+            </div>
+        </div>
+        """
+    
+    # ====================== GRAPHIQUES COMPARANT CLIENT COURANT / CLIENTS SIMILAIRES =========================== 
+    if st.sidebar.checkbox("Voir toutes infos clients ?"):     
+        
+        st.markdown(html_all_infos_clients, unsafe_allow_html=True)
+
+        with st.spinner('**Affiche toutes les informations sur le client courant...**'):                 
+                       
+            with st.expander('Toutes les informations du client courant',
+                             expanded=True):
+                st.dataframe(df_client_origin)
+                st.dataframe(df_client_test)
+
+st.sidebar.subheader('Plus infos')
+all_infos_clients()
+                
 # --------------------------------------------------------------------
 # CLIENTS SIMILAIRES 
 # --------------------------------------------------------------------
@@ -434,10 +450,15 @@ def infos_clients_similaires():
             </div>
         </div>
         """
-    st.markdown(html_clients_similaires, unsafe_allow_html=True)
+    titre = True
     
     # ====================== GRAPHIQUES COMPARANT CLIENT COURANT / CLIENTS SIMILAIRES =========================== 
-    if st.sidebar.checkbox("Show graphiques comparatifs ?"):     
+    if st.sidebar.checkbox("Voir graphiques comparatifs ?"):     
+        
+        if titre:
+            st.markdown(html_clients_similaires, unsafe_allow_html=True)
+            titre = False
+        
         with st.spinner('**Affiche les graphiques comparant le client courant et les clients similaires...**'):                 
                        
             with st.expander('Comparaison variables impactantes client courant/moyennes des clients similaires',
@@ -449,8 +470,7 @@ def infos_clients_similaires():
                     # Lineplot comparatif features importances client courant/voisins
                     # ====================================================================
                     # ===================== Valeurs moyennes des features importances pour le client courant =====================
-                    df_client_courant = \
-                        df_dashboard[df_dashboard['SK_ID_CURR'] == client_id]
+
                     df_feat_client  = df_client_courant[['SK_ID_CURR', 'AMT_ANNUITY',
                                'BUREAU_CURRENT_CREDIT_DEBT_DIFF_MIN',
                                'BUREAU_CURRENT_CREDIT_DEBT_DIFF_MEAN',
@@ -545,21 +565,21 @@ def infos_clients_similaires():
                         # Lineplot de comparaison des features importances client courant/voisins/all ================
                         plt.figure(figsize=(6, 6))
                         plt.plot(x_gp1, y_feat_client_gp1, color='Orange')
-                        plt.plot(x_gp1, y_moy_feat_voisins_gp3, color='SteelBlue')
+                        plt.plot(x_gp1, y_moy_feat_voisins_gp3, color='Green')
                         plt.plot(x_gp1, y_all_train_nondef_gp3, color='Green')
                         plt.plot(x_gp1, y_all_train_def_gp3, color='Crimson')
                         plt.xticks(rotation=90)
-                        # st.set_option('deprecation.showPyplotGlobalUse', False)
+                        st.set_option('deprecation.showPyplotGlobalUse', False)
                         st.pyplot()
                     with col2: 
                         # Lineplot de comparaison des features importances client courant/voisins/all ================
                         plt.figure(figsize=(8, 5))
                         plt.plot(x_gp2, y_feat_client_gp2, color='Orange')
-                        plt.plot(x_gp2, y_moy_feat_voisins_gp4, color='SteelBlue')
+                        plt.plot(x_gp2, y_moy_feat_voisins_gp4, color='Green')
                         plt.plot(x_gp2, y_all_train_nondef_gp4, color='Green')
                         plt.plot(x_gp2, y_all_train_def_gp4, color='Crimson')
                         plt.xticks(rotation=90)
-                        # st.set_option('deprecation.showPyplotGlobalUse', False)
+                        st.set_option('deprecation.showPyplotGlobalUse', False)
                         st.pyplot()
                         
                     with st.container(): 
@@ -647,9 +667,9 @@ def infos_clients_similaires():
                                 # ==================== ViolinPlot ========================================================
                                 sns.violinplot(x='PRED_CLASSE_CLIENT', y='AMT_ANNUITY',
                                                data=df_dashboard,
-                                               palette=['SteelBlue', 'Crimson'])
-                                df_client = df_dashboard.iloc[1]
-                                plt.plot(df_client['PRED_CLASSE_CLIENT'],
+                                               palette=['Green', 'Crimson'])
+
+                                plt.plot(df_client_courant['PRED_CLASSE_CLIENT'],
                                          amt_client,
                                          color="orange",
                                          marker="$\\bigotimes$", markersize=28)
@@ -664,7 +684,7 @@ def infos_clients_similaires():
                                 # Non-défaillants
                                 sns.distplot(df_dashboard['AMT_ANNUITY'][df_dashboard[
                                     'PRED_CLASSE_CLIENT'] == 0],
-                                             label='Non-Défaillants', hist=False, color='SteelBlue')
+                                             label='Non-Défaillants', hist=False, color='Green')
                                 # Défaillants
                                 sns.distplot(df_dashboard['AMT_ANNUITY'][df_dashboard[
                                     'PRED_CLASSE_CLIENT'] == 1],
@@ -737,9 +757,9 @@ def infos_clients_similaires():
                                 # ==================== ViolinPlot ========================================================
                                 sns.violinplot(x='PRED_CLASSE_CLIENT', y='BUREAU_CURRENT_CREDIT_DEBT_DIFF_MIN',
                                                data=df_dashboard,
-                                               palette=['SteelBlue', 'Crimson'])
-                                df_client = df_dashboard.iloc[1]
-                                plt.plot(df_client['PRED_CLASSE_CLIENT'],
+                                               palette=['Green', 'Crimson'])
+
+                                plt.plot(df_client_courant['PRED_CLASSE_CLIENT'],
                                          bccddm_client,
                                          color="orange",
                                          marker="$\\bigotimes$", markersize=28)
@@ -754,7 +774,7 @@ def infos_clients_similaires():
                                 # Non-défaillants
                                 sns.distplot(df_dashboard['BUREAU_CURRENT_CREDIT_DEBT_DIFF_MIN'][df_dashboard[
                                     'PRED_CLASSE_CLIENT'] == 0],
-                                             label='Non-Défaillants', hist=False, color='SteelBlue')
+                                             label='Non-Défaillants', hist=False, color='Green')
                                 # Défaillants
                                 sns.distplot(df_dashboard['BUREAU_CURRENT_CREDIT_DEBT_DIFF_MIN'][df_dashboard[
                                     'PRED_CLASSE_CLIENT'] == 1],
@@ -827,9 +847,9 @@ def infos_clients_similaires():
                                 # ==================== ViolinPlot ========================================================
                                 sns.violinplot(x='PRED_CLASSE_CLIENT', y='BUREAU_CURRENT_CREDIT_DEBT_DIFF_MEAN',
                                                data=df_dashboard,
-                                               palette=['SteelBlue', 'Crimson'])
-                                df_client = df_dashboard.iloc[1]
-                                plt.plot(df_client['PRED_CLASSE_CLIENT'],
+                                               palette=['Green', 'Crimson'])
+
+                                plt.plot(df_client_courant['PRED_CLASSE_CLIENT'],
                                          bccddmean_client,
                                          color="orange",
                                          marker="$\\bigotimes$", markersize=28)
@@ -844,7 +864,7 @@ def infos_clients_similaires():
                                 # Non-défaillants
                                 sns.distplot(df_dashboard['BUREAU_CURRENT_CREDIT_DEBT_DIFF_MEAN'][df_dashboard[
                                     'PRED_CLASSE_CLIENT'] == 0],
-                                             label='Non-Défaillants', hist=False, color='SteelBlue')
+                                             label='Non-Défaillants', hist=False, color='Green')
                                 # Défaillants
                                 sns.distplot(df_dashboard['BUREAU_CURRENT_CREDIT_DEBT_DIFF_MEAN'][df_dashboard[
                                     'PRED_CLASSE_CLIENT'] == 1],
@@ -923,9 +943,9 @@ def infos_clients_similaires():
                                     # ==================== ViolinPlot ========================================================
                                     sns.violinplot(x='PRED_CLASSE_CLIENT', y='BUREAU_CURRENT_DEBT_TO_CREDIT_RATIO_MEAN',
                                                    data=df_dashboard,
-                                                   palette=['SteelBlue', 'Crimson'])
-                                    df_client = df_dashboard.iloc[1]
-                                    plt.plot(df_client['PRED_CLASSE_CLIENT'],
+                                                   palette=['Green', 'Crimson'])
+    
+                                    plt.plot(df_client_courant['PRED_CLASSE_CLIENT'],
                                              bcdtcrm_client,
                                              color="orange",
                                              marker="$\\bigotimes$", markersize=28)
@@ -940,7 +960,7 @@ def infos_clients_similaires():
                                     # Non-défaillants
                                     sns.distplot(df_dashboard['BUREAU_CURRENT_DEBT_TO_CREDIT_RATIO_MEAN'][df_dashboard[
                                         'PRED_CLASSE_CLIENT'] == 0],
-                                                 label='Non-Défaillants', hist=False, color='SteelBlue')
+                                                 label='Non-Défaillants', hist=False, color='Green')
                                     # Défaillants
                                     sns.distplot(df_dashboard['BUREAU_CURRENT_DEBT_TO_CREDIT_RATIO_MEAN'][df_dashboard[
                                         'PRED_CLASSE_CLIENT'] == 1],
@@ -1023,9 +1043,9 @@ def infos_clients_similaires():
                                     # ==================== ViolinPlot ========================================================
                                     sns.violinplot(x='PRED_CLASSE_CLIENT', y='CAR_EMPLOYED_RATIO',
                                                    data=df_dashboard,
-                                                   palette=['SteelBlue', 'Crimson'])
-                                    df_client = df_dashboard.iloc[1]
-                                    plt.plot(df_client['PRED_CLASSE_CLIENT'],
+                                                   palette=['Green', 'Crimson'])
+    
+                                    plt.plot(df_client_courant['PRED_CLASSE_CLIENT'],
                                              cer_client,
                                              color="orange",
                                              marker="$\\bigotimes$", markersize=28)
@@ -1040,7 +1060,7 @@ def infos_clients_similaires():
                                     # Non-défaillants
                                     sns.distplot(df_dashboard['CAR_EMPLOYED_RATIO'][df_dashboard[
                                         'PRED_CLASSE_CLIENT'] == 0],
-                                                 label='Non-Défaillants', hist=False, color='SteelBlue')
+                                                 label='Non-Défaillants', hist=False, color='Green')
                                     # Défaillants
                                     sns.distplot(df_dashboard['CAR_EMPLOYED_RATIO'][df_dashboard[
                                         'PRED_CLASSE_CLIENT'] == 1],
@@ -1122,9 +1142,9 @@ def infos_clients_similaires():
                                     # ==================== ViolinPlot ========================================================
                                     sns.violinplot(x='PRED_CLASSE_CLIENT', y='CREDIT_ANNUITY_RATIO',
                                                    data=df_dashboard,
-                                                   palette=['SteelBlue', 'Crimson'])
-                                    df_client = df_dashboard.iloc[1]
-                                    plt.plot(df_client['PRED_CLASSE_CLIENT'],
+                                                   palette=['Green', 'Crimson'])
+    
+                                    plt.plot(df_client_courant['PRED_CLASSE_CLIENT'],
                                              car_client,
                                              color="orange",
                                              marker="$\\bigotimes$", markersize=28)
@@ -1139,7 +1159,7 @@ def infos_clients_similaires():
                                     # Non-défaillants
                                     sns.distplot(df_dashboard['CREDIT_ANNUITY_RATIO'][df_dashboard[
                                         'PRED_CLASSE_CLIENT'] == 0],
-                                                 label='Non-Défaillants', hist=False, color='SteelBlue')
+                                                 label='Non-Défaillants', hist=False, color='Green')
                                     # Défaillants
                                     sns.distplot(df_dashboard['CREDIT_ANNUITY_RATIO'][df_dashboard[
                                         'PRED_CLASSE_CLIENT'] == 1],
@@ -1222,9 +1242,9 @@ def infos_clients_similaires():
                                     # ==================== ViolinPlot ========================================================
                                     sns.violinplot(x='PRED_CLASSE_CLIENT', y='CREDIT_GOODS_RATIO',
                                                    data=df_dashboard,
-                                                   palette=['SteelBlue', 'Crimson'])
-                                    df_client = df_dashboard.iloc[1]
-                                    plt.plot(df_client['PRED_CLASSE_CLIENT'],
+                                                   palette=['Green', 'Crimson'])
+    
+                                    plt.plot(df_client_courant['PRED_CLASSE_CLIENT'],
                                              cgr_client,
                                              color="orange",
                                              marker="$\\bigotimes$", markersize=28)
@@ -1239,7 +1259,7 @@ def infos_clients_similaires():
                                     # Non-défaillants
                                     sns.distplot(df_dashboard['CREDIT_GOODS_RATIO'][df_dashboard[
                                         'PRED_CLASSE_CLIENT'] == 0],
-                                                 label='Non-Défaillants', hist=False, color='SteelBlue')
+                                                 label='Non-Défaillants', hist=False, color='Green')
                                     # Défaillants
                                     sns.distplot(df_dashboard['CREDIT_GOODS_RATIO'][df_dashboard[
                                         'PRED_CLASSE_CLIENT'] == 1],
@@ -1320,9 +1340,9 @@ def infos_clients_similaires():
                                     # ==================== ViolinPlot ========================================================
                                     sns.violinplot(x='PRED_CLASSE_CLIENT', y='YEAR_BIRTH',
                                                    data=df_dashboard,
-                                                   palette=['SteelBlue', 'Crimson'])
-                                    df_client = df_dashboard.iloc[1]
-                                    plt.plot(df_client['PRED_CLASSE_CLIENT'],
+                                                   palette=['Green', 'Crimson'])
+    
+                                    plt.plot(df_client_courant['PRED_CLASSE_CLIENT'],
                                              age_client,
                                              color="orange",
                                              marker="$\\bigotimes$", markersize=28)
@@ -1337,7 +1357,7 @@ def infos_clients_similaires():
                                     # Non-défaillants
                                     sns.distplot(df_dashboard['YEAR_BIRTH'][df_dashboard[
                                         'PRED_CLASSE_CLIENT'] == 0],
-                                                 label='Non-Défaillants', hist=False, color='SteelBlue')
+                                                 label='Non-Défaillants', hist=False, color='Green')
                                     # Défaillants
                                     sns.distplot(df_dashboard['YEAR_BIRTH'][df_dashboard[
                                         'PRED_CLASSE_CLIENT'] == 1],
@@ -1419,9 +1439,9 @@ def infos_clients_similaires():
                                     # ==================== ViolinPlot ========================================================
                                     sns.violinplot(x='PRED_CLASSE_CLIENT', y='DAYS_ID_PUBLISH',
                                                    data=df_dashboard,
-                                                   palette=['SteelBlue', 'Crimson'])
-                                    df_client = df_dashboard.iloc[1]
-                                    plt.plot(df_client['PRED_CLASSE_CLIENT'],
+                                                   palette=['Green', 'Crimson'])
+    
+                                    plt.plot(df_client_courant['PRED_CLASSE_CLIENT'],
                                              dip_client,
                                              color="orange",
                                              marker="$\\bigotimes$", markersize=28)
@@ -1436,7 +1456,7 @@ def infos_clients_similaires():
                                     # Non-défaillants
                                     sns.distplot(df_dashboard['DAYS_ID_PUBLISH'][df_dashboard[
                                         'PRED_CLASSE_CLIENT'] == 0],
-                                                 label='Non-Défaillants', hist=False, color='SteelBlue')
+                                                 label='Non-Défaillants', hist=False, color='Green')
                                     # Défaillants
                                     sns.distplot(df_dashboard['DAYS_ID_PUBLISH'][df_dashboard[
                                         'PRED_CLASSE_CLIENT'] == 1],
@@ -1518,9 +1538,9 @@ def infos_clients_similaires():
                                     # ==================== ViolinPlot ========================================================
                                     sns.violinplot(x='PRED_CLASSE_CLIENT', y='EXT_SOURCE_1',
                                                    data=df_dashboard,
-                                                   palette=['SteelBlue', 'Crimson'])
-                                    df_client = df_dashboard.iloc[1]
-                                    plt.plot(df_client['PRED_CLASSE_CLIENT'],
+                                                   palette=['Green', 'Crimson'])
+    
+                                    plt.plot(df_client_courant['PRED_CLASSE_CLIENT'],
                                              es1_client,
                                              color="orange",
                                              marker="$\\bigotimes$", markersize=28)
@@ -1535,7 +1555,7 @@ def infos_clients_similaires():
                                     # Non-défaillants
                                     sns.distplot(df_dashboard['EXT_SOURCE_1'][df_dashboard[
                                         'PRED_CLASSE_CLIENT'] == 0],
-                                                 label='Non-Défaillants', hist=False, color='SteelBlue')
+                                                 label='Non-Défaillants', hist=False, color='Green')
                                     # Défaillants
                                     sns.distplot(df_dashboard['EXT_SOURCE_1'][df_dashboard[
                                         'PRED_CLASSE_CLIENT'] == 1],
@@ -1617,9 +1637,9 @@ def infos_clients_similaires():
                                     # ==================== ViolinPlot ========================================================
                                     sns.violinplot(x='PRED_CLASSE_CLIENT', y='EXT_SOURCE_2',
                                                    data=df_dashboard,
-                                                   palette=['SteelBlue', 'Crimson'])
-                                    df_client = df_dashboard.iloc[1]
-                                    plt.plot(df_client['PRED_CLASSE_CLIENT'],
+                                                   palette=['Green', 'Crimson'])
+    
+                                    plt.plot(df_client_courant['PRED_CLASSE_CLIENT'],
                                              es2_client,
                                              color="orange",
                                              marker="$\\bigotimes$", markersize=28)
@@ -1634,7 +1654,7 @@ def infos_clients_similaires():
                                     # Non-défaillants
                                     sns.distplot(df_dashboard['EXT_SOURCE_2'][df_dashboard[
                                         'PRED_CLASSE_CLIENT'] == 0],
-                                                 label='Non-Défaillants', hist=False, color='SteelBlue')
+                                                 label='Non-Défaillants', hist=False, color='Green')
                                     # Défaillants
                                     sns.distplot(df_dashboard['EXT_SOURCE_2'][df_dashboard[
                                         'PRED_CLASSE_CLIENT'] == 1],
@@ -1716,9 +1736,9 @@ def infos_clients_similaires():
                                     # ==================== ViolinPlot ========================================================
                                     sns.violinplot(x='PRED_CLASSE_CLIENT', y='EXT_SOURCE_3',
                                                    data=df_dashboard,
-                                                   palette=['SteelBlue', 'Crimson'])
-                                    df_client = df_dashboard.iloc[1]
-                                    plt.plot(df_client['PRED_CLASSE_CLIENT'],
+                                                   palette=['Green', 'Crimson'])
+    
+                                    plt.plot(df_client_courant['PRED_CLASSE_CLIENT'],
                                              es3_client,
                                              color="orange",
                                              marker="$\\bigotimes$", markersize=28)
@@ -1733,7 +1753,7 @@ def infos_clients_similaires():
                                     # Non-défaillants
                                     sns.distplot(df_dashboard['EXT_SOURCE_3'][df_dashboard[
                                         'PRED_CLASSE_CLIENT'] == 0],
-                                                 label='Non-Défaillants', hist=False, color='SteelBlue')
+                                                 label='Non-Défaillants', hist=False, color='Green')
                                     # Défaillants
                                     sns.distplot(df_dashboard['EXT_SOURCE_3'][df_dashboard[
                                         'PRED_CLASSE_CLIENT'] == 1],
@@ -1815,9 +1835,9 @@ def infos_clients_similaires():
                                     # ==================== ViolinPlot ========================================================
                                     sns.violinplot(x='PRED_CLASSE_CLIENT', y='EXT_SOURCE_MAX',
                                                    data=df_dashboard,
-                                                   palette=['SteelBlue', 'Crimson'])
-                                    df_client = df_dashboard.iloc[1]
-                                    plt.plot(df_client['PRED_CLASSE_CLIENT'],
+                                                   palette=['Green', 'Crimson'])
+    
+                                    plt.plot(df_client_courant['PRED_CLASSE_CLIENT'],
                                              esm_client,
                                              color="orange",
                                              marker="$\\bigotimes$", markersize=28)
@@ -1832,7 +1852,7 @@ def infos_clients_similaires():
                                     # Non-défaillants
                                     sns.distplot(df_dashboard['EXT_SOURCE_MAX'][df_dashboard[
                                         'PRED_CLASSE_CLIENT'] == 0],
-                                                 label='Non-Défaillants', hist=False, color='SteelBlue')
+                                                 label='Non-Défaillants', hist=False, color='Green')
                                     # Défaillants
                                     sns.distplot(df_dashboard['EXT_SOURCE_MAX'][df_dashboard[
                                         'PRED_CLASSE_CLIENT'] == 1],
@@ -1914,9 +1934,9 @@ def infos_clients_similaires():
                                     # ==================== ViolinPlot ========================================================
                                     sns.violinplot(x='PRED_CLASSE_CLIENT', y='EXT_SOURCE_SUM',
                                                    data=df_dashboard,
-                                                   palette=['SteelBlue', 'Crimson'])
-                                    df_client = df_dashboard.iloc[1]
-                                    plt.plot(df_client['PRED_CLASSE_CLIENT'],
+                                                   palette=['Green', 'Crimson'])
+    
+                                    plt.plot(df_client_courant['PRED_CLASSE_CLIENT'],
                                              ess_client,
                                              color="orange",
                                              marker="$\\bigotimes$", markersize=28)
@@ -1931,7 +1951,7 @@ def infos_clients_similaires():
                                     # Non-défaillants
                                     sns.distplot(df_dashboard['EXT_SOURCE_SUM'][df_dashboard[
                                         'PRED_CLASSE_CLIENT'] == 0],
-                                                 label='Non-Défaillants', hist=False, color='SteelBlue')
+                                                 label='Non-Défaillants', hist=False, color='Green')
                                     # Défaillants
                                     sns.distplot(df_dashboard['EXT_SOURCE_SUM'][df_dashboard[
                                         'PRED_CLASSE_CLIENT'] == 1],
@@ -2014,9 +2034,9 @@ def infos_clients_similaires():
                                     # ==================== ViolinPlot ========================================================
                                     sns.violinplot(x='PRED_CLASSE_CLIENT', y='INST_PAY_AMT_INSTALMENT_SUM',
                                                    data=df_dashboard,
-                                                   palette=['SteelBlue', 'Crimson'])
-                                    df_client = df_dashboard.iloc[1]
-                                    plt.plot(df_client['PRED_CLASSE_CLIENT'],
+                                                   palette=['Green', 'Crimson'])
+    
+                                    plt.plot(df_client_courant['PRED_CLASSE_CLIENT'],
                                              ipais_client,
                                              color="orange",
                                              marker="$\\bigotimes$", markersize=28)
@@ -2031,7 +2051,7 @@ def infos_clients_similaires():
                                     # Non-défaillants
                                     sns.distplot(df_dashboard['INST_PAY_AMT_INSTALMENT_SUM'][df_dashboard[
                                         'PRED_CLASSE_CLIENT'] == 0],
-                                                 label='Non-Défaillants', hist=False, color='SteelBlue')
+                                                 label='Non-Défaillants', hist=False, color='Green')
                                     # Défaillants
                                     sns.distplot(df_dashboard['INST_PAY_AMT_INSTALMENT_SUM'][df_dashboard[
                                         'PRED_CLASSE_CLIENT'] == 1],
@@ -2117,9 +2137,9 @@ def infos_clients_similaires():
                                     # ==================== ViolinPlot ========================================================
                                     sns.violinplot(x='PRED_CLASSE_CLIENT', y='INST_PAY_DAYS_PAYMENT_RATIO_MAX',
                                                    data=df_dashboard,
-                                                   palette=['SteelBlue', 'Crimson'])
-                                    df_client = df_dashboard.iloc[1]
-                                    plt.plot(df_client['PRED_CLASSE_CLIENT'],
+                                                   palette=['Green', 'Crimson'])
+    
+                                    plt.plot(df_client_courant['PRED_CLASSE_CLIENT'],
                                              ipdprm_client,
                                              color="orange",
                                              marker="$\\bigotimes$", markersize=28)
@@ -2134,7 +2154,7 @@ def infos_clients_similaires():
                                     # Non-défaillants
                                     sns.distplot(df_dashboard['INST_PAY_DAYS_PAYMENT_RATIO_MAX'][df_dashboard[
                                         'PRED_CLASSE_CLIENT'] == 0],
-                                                 label='Non-Défaillants', hist=False, color='SteelBlue')
+                                                 label='Non-Défaillants', hist=False, color='Green')
                                     # Défaillants
                                     sns.distplot(df_dashboard['INST_PAY_DAYS_PAYMENT_RATIO_MAX'][df_dashboard[
                                         'PRED_CLASSE_CLIENT'] == 1],
@@ -2216,9 +2236,9 @@ def infos_clients_similaires():
                                     # ==================== ViolinPlot ========================================================
                                     sns.violinplot(x='PRED_CLASSE_CLIENT', y='POS_CASH_NAME_CONTRACT_STATUS_ACTIVE_SUM',
                                                    data=df_dashboard,
-                                                   palette=['SteelBlue', 'Crimson'])
-                                    df_client = df_dashboard.iloc[1]
-                                    plt.plot(df_client['PRED_CLASSE_CLIENT'],
+                                                   palette=['Green', 'Crimson'])
+    
+                                    plt.plot(df_client_courant['PRED_CLASSE_CLIENT'],
                                              pcncsas_client,
                                              color="orange",
                                              marker="$\\bigotimes$", markersize=28)
@@ -2233,7 +2253,7 @@ def infos_clients_similaires():
                                     # Non-défaillants
                                     sns.distplot(df_dashboard['POS_CASH_NAME_CONTRACT_STATUS_ACTIVE_SUM'][df_dashboard[
                                         'PRED_CLASSE_CLIENT'] == 0],
-                                                 label='Non-Défaillants', hist=False, color='SteelBlue')
+                                                 label='Non-Défaillants', hist=False, color='Green')
                                     # Défaillants
                                     sns.distplot(df_dashboard['POS_CASH_NAME_CONTRACT_STATUS_ACTIVE_SUM'][df_dashboard[
                                         'PRED_CLASSE_CLIENT'] == 1],
@@ -2317,9 +2337,9 @@ def infos_clients_similaires():
                                     # ==================== ViolinPlot ========================================================
                                     sns.violinplot(x='PRED_CLASSE_CLIENT', y='PREV_APP_INTEREST_SHARE_MAX',
                                                    data=df_dashboard,
-                                                   palette=['SteelBlue', 'Crimson'])
-                                    df_client = df_dashboard.iloc[1]
-                                    plt.plot(df_client['PRED_CLASSE_CLIENT'],
+                                                   palette=['Green', 'Crimson'])
+    
+                                    plt.plot(df_client_courant['PRED_CLASSE_CLIENT'],
                                              paism_client,
                                              color="orange",
                                              marker="$\\bigotimes$", markersize=28)
@@ -2334,7 +2354,7 @@ def infos_clients_similaires():
                                     # Non-défaillants
                                     sns.distplot(df_dashboard['PREV_APP_INTEREST_SHARE_MAX'][df_dashboard[
                                         'PRED_CLASSE_CLIENT'] == 0],
-                                                 label='Non-Défaillants', hist=False, color='SteelBlue')
+                                                 label='Non-Défaillants', hist=False, color='Green')
                                     # Défaillants
                                     sns.distplot(df_dashboard['PREV_APP_INTEREST_SHARE_MAX'][df_dashboard[
                                         'PRED_CLASSE_CLIENT'] == 1],
@@ -2353,10 +2373,158 @@ def infos_clients_similaires():
                                     st.markdown(html_PREV_APP_INTEREST_SHARE_MAX, unsafe_allow_html=True)                                   
                                     st.write("Toutes les valeurs sont identiques") 
 
+                        # ==============================================================
+                        # Variable CODE_GENDER
+                        # Sexe 
+                        # ==============================================================
+                        if 'CODE_GENDER' in feat_imp_to_show:
+                                
+                            with st.spinner('**Chargement du graphique comparatif CODE_GENDER...**'):
 
+                                    cg_client = int(df_dashboard[df_dashboard['SK_ID_CURR'] == client_id][
+                                        'CODE_GENDER'].values)
+
+                                    st.markdown(html_CODE_GENDER, unsafe_allow_html=True)
+
+                                    # ==================== ViolinPlot ========================================================
+                                    sns.violinplot(x='PRED_CLASSE_CLIENT', y='CODE_GENDER',
+                                                   data=df_dashboard,
+                                                   palette=['Green', 'Crimson'])
+    
+                                    plt.plot(df_client_courant['PRED_CLASSE_CLIENT'],
+                                             cg_client,
+                                             color="orange",
+                                             marker="$\\bigotimes$", markersize=28)
+                                    plt.xlabel('TARGET', fontsize=16)
+                                    client = mlines.Line2D([], [], color='orange', marker='$\\bigotimes$',
+                                                           linestyle='None',
+                                                           markersize=16, label='Position du client')
+                                    plt.legend(handles=[client], bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
+                                    st.pyplot()
+                                        
+                                    # ==================== DistPlot ==========================================================
+                                    # Non-défaillants
+                                    sns.distplot(df_dashboard['CODE_GENDER'][df_dashboard[
+                                        'PRED_CLASSE_CLIENT'] == 0],
+                                                 label='Non-Défaillants', hist=False, color='Green')
+                                    # Défaillants
+                                    sns.distplot(df_dashboard['CODE_GENDER'][df_dashboard[
+                                        'PRED_CLASSE_CLIENT'] == 1],
+                                                 label='Défaillants', hist=False, color='Crimson')
+                                    plt.xlabel('CODE_GENDER', fontsize=16)
+                                    plt.ylabel('Probability Density', fontsize=16)
+                                    plt.xticks(fontsize=16, rotation=90)
+                                    plt.yticks(fontsize=16)
+                                    # Position du client
+                                    plt.axvline(x=cg_client, color='orange', label='Position du client')
+                                    plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0., fontsize=18)
+                                    st.pyplot()                                   
+                                                                             
+
+                        # ==============================================================
+                        # Variable FLAG_OWN_CAR
+                        # Indicateur si le client possède une voiture
+                        # ==============================================================
+                        if 'FLAG_OWN_CAR' in feat_imp_to_show:
+                                
+                            with st.spinner('**Chargement du graphique comparatif FLAG_OWN_CAR...**'):
+                                
+                                    foc_client = int(df_dashboard[df_dashboard['SK_ID_CURR'] == client_id][
+                                        'FLAG_OWN_CAR'].values)
+
+                                    st.markdown(html_FLAG_OWN_CAR, unsafe_allow_html=True)
+                                    
+                                    # ==================== ViolinPlot ========================================================
+                                    sns.violinplot(x='PRED_CLASSE_CLIENT', y='FLAG_OWN_CAR',
+                                                   data=df_dashboard,
+                                                   palette=['Green', 'Crimson'])
+    
+                                    plt.plot(df_client_courant['PRED_CLASSE_CLIENT'],
+                                             foc_client,
+                                             color="orange",
+                                             marker="$\\bigotimes$", markersize=28)
+                                    plt.xlabel('TARGET', fontsize=16)
+                                    client = mlines.Line2D([], [], color='orange', marker='$\\bigotimes$',
+                                                           linestyle='None',
+                                                           markersize=16, label='Position du client')
+                                    plt.legend(handles=[client], bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
+                                    st.pyplot()
+                                        
+                                    # ==================== DistPlot ==========================================================
+                                    # Non-défaillants
+                                    sns.distplot(df_dashboard['FLAG_OWN_CAR'][df_dashboard[
+                                        'PRED_CLASSE_CLIENT'] == 0],
+                                                 label='Non-Défaillants', hist=False, color='Green')
+                                    # Défaillants
+                                    sns.distplot(df_dashboard['FLAG_OWN_CAR'][df_dashboard[
+                                        'PRED_CLASSE_CLIENT'] == 1],
+                                                 label='Défaillants', hist=False, color='Crimson')
+                                    plt.xlabel('FLAG_OWN_CAR', fontsize=16)
+                                    plt.ylabel('Probability Density', fontsize=16)
+                                    plt.xticks(fontsize=16, rotation=90)
+                                    plt.yticks(fontsize=16)
+                                    # Position du client
+                                    plt.axvline(x=foc_client, color='orange', label='Position du client')
+                                    plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0., fontsize=18)
+                                    st.pyplot()  
+                                    
+
+                        # ==============================================================
+                        # Variable NAME_EDUCATION_TYPE_HIGHER_EDUCATION
+                        # Indicateur si le client possède une voiture
+                        # ==============================================================
+                        if 'NAME_EDUCATION_TYPE_HIGHER_EDUCATION' in feat_imp_to_show:
+                                
+                            with st.spinner('**Chargement du graphique comparatif NAME_EDUCATION_TYPE_HIGHER_EDUCATION...**'):
+                                
+                                    nethe_client = int(df_dashboard[df_dashboard['SK_ID_CURR'] == client_id][
+                                        'NAME_EDUCATION_TYPE_HIGHER_EDUCATION'].values)
+
+                                    st.markdown(html_NAME_EDUCATION_TYPE_HIGHER_EDUCATION, unsafe_allow_html=True)
+                                    
+                                    # ==================== ViolinPlot ========================================================
+                                    sns.violinplot(x='PRED_CLASSE_CLIENT', y='NAME_EDUCATION_TYPE_HIGHER_EDUCATION',
+                                                   data=df_dashboard,
+                                                   palette=['Green', 'Crimson'])
+    
+                                    plt.plot(df_client_courant['PRED_CLASSE_CLIENT'],
+                                             nethe_client,
+                                             color="orange",
+                                             marker="$\\bigotimes$", markersize=28)
+                                    plt.xlabel('TARGET', fontsize=16)
+                                    client = mlines.Line2D([], [], color='orange', marker='$\\bigotimes$',
+                                                           linestyle='None',
+                                                           markersize=16, label='Position du client')
+                                    plt.legend(handles=[client], bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
+                                    st.pyplot()
+                                        
+                                    # ==================== DistPlot ==========================================================
+                                    # Non-défaillants
+                                    sns.distplot(df_dashboard['NAME_EDUCATION_TYPE_HIGHER_EDUCATION'][df_dashboard[
+                                        'PRED_CLASSE_CLIENT'] == 0],
+                                                 label='Non-Défaillants', hist=False, color='Green')
+                                    # Défaillants
+                                    sns.distplot(df_dashboard['NAME_EDUCATION_TYPE_HIGHER_EDUCATION'][df_dashboard[
+                                        'PRED_CLASSE_CLIENT'] == 1],
+                                                 label='Défaillants', hist=False, color='Crimson')
+                                    plt.xlabel('NAME_EDUCATION_TYPE_HIGHER_EDUCATION', fontsize=16)
+                                    plt.ylabel('Probability Density', fontsize=16)
+                                    plt.xticks(fontsize=16, rotation=90)
+                                    plt.yticks(fontsize=16)
+                                    # Position du client
+                                    plt.axvline(x=nethe_client, color='orange', label='Position du client')
+                                    plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0., fontsize=18)
+                                    st.pyplot()  
+
+
+                                    
     # ====================== COMPARAISON TRAITS STRICTS CLIENT COURANT / CLIENTS SIMILAIRES ============================
-    if st.sidebar.checkbox("Compare traits stricts ?"):     
+    if st.sidebar.checkbox("Comparer traits stricts ?"):     
 
+        if titre:
+            st.markdown(html_clients_similaires, unsafe_allow_html=True)
+            titre = False
+            
         with st.spinner('**Affiche les traits stricts comparant le client courant et les clients similaires...**'):                 
                                           
             with st.expander('Comparaison traits stricts',
@@ -2367,11 +2535,16 @@ def infos_clients_similaires():
                     st.write('Client courant')
                     st.dataframe(client_info)
                     st.write('10 clients similaires')
-                    st.dataframe(voisins_info)
+                    st.dataframe(voisins_info.style.highlight_max(axis=0))
+
             
     # ====================== COMPARAISON DEMANDE DE PRÊT CLIENT COURANT / CLIENTS SIMILAIRES ============================
-    if st.sidebar.checkbox("Compare demande prêt ?"):     
+    if st.sidebar.checkbox("Comparer demande prêt ?"):     
 
+        if titre:
+            st.markdown(html_clients_similaires, unsafe_allow_html=True)
+            titre = False
+            
         with st.spinner('**Affiche les informations de la demande de prêt comparant le client courant et les clients similaires...**'):                 
 
             with st.expander('Comparaison demande de prêt',
@@ -2382,12 +2555,283 @@ def infos_clients_similaires():
                     st.write('Client courant')
                     st.dataframe(client_pret)
                     st.write('10 clients similaires')
-                    st.dataframe(voisins_pret)
+                    st.dataframe(voisins_pret.style.highlight_max(axis=0))
             
 
 st.sidebar.subheader('Clients similaires')
 infos_clients_similaires()
 
+# --------------------------------------------------------------------
+# FACTEURS D'INFLUENCE : SHAP VALUE
+# --------------------------------------------------------------------
+    
+def affiche_facteurs_influence():
+    ''' Affiche les facteurs d'influence du client courant
+    '''
+    html_facteurs_influence="""
+        <div class="card">
+            <div class="card-body" style="border-radius: 10px 10px 0px 0px;
+                  background: #DEC7CB; padding-top: 5px; width: auto;
+                  height: 40px;">
+                  <h3 class="card-title" style="background-color:#DEC7CB; color:Crimson;
+                      font-family:Georgia; text-align: center; padding: 0px 0;">
+                      Variables importantes
+                  </h3>
+            </div>
+        </div>
+        """
+    
+    # ====================== GRAPHIQUES COMPARANT CLIENT COURANT / CLIENTS SIMILAIRES =========================== 
+    if st.sidebar.checkbox("Voir facteurs d\'influence"):     
+        
+        st.markdown(html_facteurs_influence, unsafe_allow_html=True)
+
+        with st.spinner('**Affiche les facteurs d\'influence du client courant...**'):                 
+                       
+            with st.expander('Facteurs d\'influence du client courant',
+                              expanded=True):
+                
+                explainer = shap.TreeExplainer(best_model)
+                
+                client_index = test_set[test_set['SK_ID_CURR'] == client_id].index.item()
+                X_shap = test_set.set_index('SK_ID_CURR')
+                X_test_courant = X_shap.iloc[client_index]
+                X_test_courant_array = X_test_courant.values.reshape(1, -1)
+                
+                shap_values_courant = explainer.shap_values(X_test_courant_array)
+                
+                col1, col2 = st.columns([1, 1])
+                # BarPlot du client courant
+                with col1:
+
+                    plt.clf()
+                    
+
+                    # BarPlot du client courant
+                    shap.plots.bar( shap_values[client_index], max_display=40)
+                    
+                    fig = plt.gcf()
+                    fig.set_size_inches((10, 20))
+                    # Plot the graph on the dashboard
+                    st.pyplot(fig)
+     
+                # Décision plot du client courant
+                with col2:
+                    plt.clf()
+
+                    # Décision Plot
+                    shap.decision_plot(explainer.expected_value[1], shap_values_courant[1],
+                                    X_test_courant)
+                
+                    fig2 = plt.gcf()
+                    fig2.set_size_inches((10, 15))
+                    # Plot the graph on the dashboard
+                    st.pyplot(fig2)
+                    
+st.sidebar.subheader('Facteurs d\'influence')
+affiche_facteurs_influence()
+
+# --------------------------------------------------------------------
+# STATISTIQUES GENERALES
+# --------------------------------------------------------------------
+
+dico_stats = {'Variable cible': 'TARGET',
+              'Type de prêt': 'NAME_CONTRACT_TYPE',
+              'Sexe': 'CODE_GENDER',
+              'Tél. professionnel': 'FLAG_EMP_PHONE',
+              'Note région où vit client': 'REGION_RATING_CLIENT_W_CITY',
+              'Niveau éducation du client': 'NAME_EDUCATION_TYPE',
+              'Profession du client': 'OCCUPATION_TYPE',
+              'Type d\'organisation de travail du client': 'ORGANIZATION_TYPE',
+              'Adresse du client = adresse de contact': 'REG_CITY_NOT_LIVE_CITY',
+              'Région du client = adresse professionnelle': 'REG_CITY_NOT_WORK_CITY',
+              'Adresse du client = adresse professionnelle': 'LIVE_CITY_NOT_WORK_CITY',
+              'Logement du client': 'NAME_HOUSING_TYPE',
+              'Statut familial': 'NAME_FAMILY_STATUS',
+              'Type de revenu du client': 'NAME_INCOME_TYPE',
+              'Client possède une maison ou appartement?': 'FLAG_OWN_REALTY',
+              'Accompagnateur lors de la demande de prêt?': 'NAME_TYPE_SUITE',
+              'Quel jour de la semaine le client a-t-il demandé le prêt ?': 'WEEKDAY_APPR_PROCESS_START',
+              'Le client a-t-il fourni un numéro de téléphone portable ?': 'FLAG_MOBIL',
+              'Le client a-t-il fourni un numéro de téléphone professionnel fixe ?': 'FLAG_WORK_PHONE',
+              'Le téléphone portable était-il joignable?': 'FLAG_CONT_MOBILE',             
+              'Le client a-t-il fourni un numéro de téléphone domicile fixe ?': 'FLAG_PHONE',
+              'Le client a-t-il fourni une adresse électronique': 'FLAG_EMAIL',
+              'Âge (ans)': 'AGE_YEARS',
+              'Combien d\'années avant la demande la personne a commencé son emploi actuel ?': 'YEARS_EMPLOYED',
+              'Combien de jours avant la demande le client a-t-il changé son enregistrement ?': 'DAYS_REGISTRATION',
+              'Combien de jours avant la demande le client a-t-il changé la pièce d\'identité avec laquelle il a demandé le prêt ?': 'DAYS_ID_PUBLISH',
+              'Prix du bien que le client a demandé': 'AMT_GOODS_PRICE',
+              'Nombre d\enfants?': 'CNT_CHILDREN',
+              'Revenu du client': 'AMT_INCOME_TOTAL',
+              'Montant du crédit du prêt': 'AMT_CREDIT',
+              'Annuité de prêt': 'AMT_ANNUITY',
+              'Âge de la voiture du client': 'OWN_CAR_AGE',
+              'Combien de membres de la famille a le client': 'CNT_FAM_MEMBERS',
+              'Population normalisée de la région où vit le client': 'REGION_POPULATION_RELATIVE',
+              'Notre évaluation de la région où vit le client (1 ou 2 ou 3)': 'REGION_RATING_CLIENT',
+              'Indicateur si l\'adresse permanente du client ne correspond pas à l\'adresse de contact': 'REG_REGION_NOT_LIVE_REGION',
+              'Indicateur si l\'adresse permanente du client ne correspond pas à l\'adresse professionnelle': 'REG_REGION_NOT_WORK_REGION',
+              'Indicateur si l\'adresse de contact du client ne correspond pas à l\'adresse de travail': 'LIVE_REGION_NOT_WORK_REGION',
+              'Combien de jours avant la demande le client a-t-il changé de téléphone ?': 'DAYS_LAST_PHONE_CHANGE',
+              'Statut des crédits déclarés par le Credit Bureau': 'CREDIT_ACTIVE',
+              'Devise recodée du crédit du Credit Bureau': 'CREDIT_CURRENCY',
+              'Type de crédit du Bureau de crédit (voiture ou argent liquide...)': 'CREDIT_TYPE',
+              'Combien d\années avant la demande actuelle le client a-t-il demandé un crédit au Credit Bureau ?': 'YEARS_CREDIT',
+              'Durée restante du crédit CB (en jours) au moment de la demande dans Crédit immobilier': 'DAYS_CREDIT_ENDDATE',
+              'Combien de jours avant la demande de prêt la dernière information sur la solvabilité du Credit Bureau a-t-elle été fournie ?': 'DAYS_CREDIT_UPDATE',
+              'Nombre de jours de retard sur le crédit CB au moment de la demande de prêt': 'CREDIT_DAY_OVERDUE',
+              'Montant maximal des impayés sur le crédit du Credit Bureau jusqu\'à présent': 'AMT_CREDIT_MAX_OVERDUE',
+              'Combien de fois le crédit du Bureau de crédit a-t-il été prolongé ?': 'CNT_CREDIT_PROLONG',
+              'Montant actuel du crédit du Credit Bureau': 'AMT_CREDIT_SUM',
+              'Dette actuelle sur le crédit du Credit Bureau': 'AMT_CREDIT_SUM_DEBT',
+              'Limite de crédit actuelle de la carte de crédit déclarée dans le Bureau de crédit': 'AMT_CREDIT_SUM_LIMIT',
+              'Montant actuel en retard sur le crédit du Bureau de crédit': 'AMT_CREDIT_SUM_OVERDUE',
+              'Annuité du crédit du Credit Bureau': 'AMT_ANNUITY',
+              'Statut du prêt du Credit Bureau durant le mois': 'STATUS',
+              'Mois du solde par rapport à la date de la demande': 'MONTHS_BALANCE',
+              'Statut du contrat au cours du mois': 'NAME_CONTRACT_STATUS',
+              'Solde au cours du mois du crédit précédent': 'AMT_BALANCE',
+              'Montant total à recevoir sur le crédit précédent': 'AMT_TOTAL_RECEIVABLE',
+              'Nombre d\'échéances payées sur le crédit précédent': 'CNT_INSTALMENT_MATURE_CUM',
+              'Mois du solde par rapport à la date d\'application': 'MONTHS_BALANCE',
+              'Limite de la carte de crédit au cours du mois du crédit précédent': 'AMT_CREDIT_LIMIT_ACTUAL',
+              'Montant retiré au guichet automatique pendant le mois du crédit précédent': 'AMT_DRAWINGS_ATM_CURRENT',
+              'Montant prélevé au cours du mois du crédit précédent': 'AMT_DRAWINGS_CURRENT',
+              'Montant des autres prélèvements au cours du mois du crédit précédent': 'AMT_DRAWINGS_OTHER_CURRENT',
+              'Montant des prélèvements ou des achats de marchandises au cours du mois de la crédibilité précédente': 'AMT_DRAWINGS_POS_CURRENT',
+              'Versement minimal pour ce mois du crédit précédent': 'AMT_INST_MIN_REGULARITY',
+              'Combien le client a-t-il payé pendant le mois sur le crédit précédent ?': 'AMT_PAYMENT_CURRENT',
+              'Combien le client a-t-il payé au total pendant le mois sur le crédit précédent ?': 'AMT_PAYMENT_TOTAL_CURRENT',
+              'Montant à recevoir pour le principal du crédit précédent': 'AMT_RECEIVABLE_PRINCIPAL',
+              'Montant à recevoir sur le crédit précédent': 'AMT_RECIVABLE', 
+              'Nombre de retraits au guichet automatique durant ce mois sur le crédit précédent': 'CNT_DRAWINGS_ATM_CURRENT',
+              'Nombre de retraits pendant ce mois sur le crédit précédent': 'CNT_DRAWINGS_CURRENT',
+              'Nombre d\'autres retraits au cours de ce mois sur le crédit précédent': 'CNT_DRAWINGS_OTHER_CURRENT',
+              'Nombre de retraits de marchandises durant ce mois sur le crédit précédent': 'CNT_DRAWINGS_POS_CURRENT',
+              'DPD (jours de retard) au cours du mois sur le crédit précédent': 'SK_DPD',
+              'DPD (Days past due) au cours du mois avec tolérance (les dettes avec de faibles montants de prêt sont ignorées) du crédit précédent': 'SK_DPD_DEF',
+              'La date à laquelle le versement du crédit précédent était censé être payé (par rapport à la date de demande du prêt actuel)': 'DAYS_INSTALMENT',
+              'Quand les échéances du crédit précédent ont-elles été effectivement payées (par rapport à la date de demande du prêt actuel) ?': 'DAYS_ENTRY_PAYMENT',
+              'Version du calendrier des versements (0 pour la carte de crédit) du crédit précédent': 'NUM_INSTALMENT_VERSION',
+              'Sur quel versement nous observons le paiement': 'NUM_INSTALMENT_NUMBER',
+              'Quel était le montant de l\'acompte prescrit du crédit précédent sur cet acompte ?': 'AMT_INSTALMENT',
+              'Ce que le client a effectivement payé sur le crédit précédent pour ce versement': 'AMT_PAYMENT',
+              'Statut du contrat au cours du mois': 'NAME_CONTRACT_STATUS',
+              'Durée du crédit précédent (peut changer avec le temps)': 'CNT_INSTALMENT',
+              'Versements restant à payer sur le crédit précédent': 'CNT_INSTALMENT_FUTURE',
+              'EXT_SOURCE_1': 'EXT_SOURCE_1',
+              'EXT_SOURCE_2': 'EXT_SOURCE_2',
+              'EXT_SOURCE_3': 'EXT_SOURCE_3',
+              'FLAG_DOCUMENT_2': 'FLAG_DOCUMENT_2',
+              'FLAG_DOCUMENT_3': 'FLAG_DOCUMENT_3',
+              'FLAG_DOCUMENT_4': 'FLAG_DOCUMENT_4',
+              'FLAG_DOCUMENT_5': 'FLAG_DOCUMENT_5',
+              'FLAG_DOCUMENT_6': 'FLAG_DOCUMENT_6',
+              'FLAG_DOCUMENT_7': 'FLAG_DOCUMENT_7',
+              'FLAG_DOCUMENT_8': 'FLAG_DOCUMENT_8',
+              'FLAG_DOCUMENT_9': 'FLAG_DOCUMENT_9',
+              'FLAG_DOCUMENT_10': 'FLAG_DOCUMENT_10',
+              'FLAG_DOCUMENT_11': 'FLAG_DOCUMENT_11',
+              'FLAG_DOCUMENT_12': 'FLAG_DOCUMENT_12',
+              'FLAG_DOCUMENT_13': 'FLAG_DOCUMENT_13',
+              'FLAG_DOCUMENT_14': 'FLAG_DOCUMENT_14',
+              'FLAG_DOCUMENT_15': 'FLAG_DOCUMENT_15',
+              'FLAG_DOCUMENT_16': 'FLAG_DOCUMENT_16',
+              'FLAG_DOCUMENT_17': 'FLAG_DOCUMENT_17',
+              'FLAG_DOCUMENT_18': 'FLAG_DOCUMENT_18',
+              'FLAG_DOCUMENT_19': 'FLAG_DOCUMENT_19',
+              'FLAG_DOCUMENT_20': 'FLAG_DOCUMENT_20',
+              'FLAG_DOCUMENT_21': 'FLAG_DOCUMENT_21',
+              'FONDKAPREMONT_MODE': 'FONDKAPREMONT_MODE',
+              'HOUSETYPE_MODE': 'HOUSETYPE_MODE',
+              'WALLSMATERIAL_MODE': 'WALLSMATERIAL_MODE',
+              'EMERGENCYSTATE_MODE': 'EMERGENCYSTATE_MODE',
+              'FLOORSMAX_AVG': 'FLOORSMAX_AVG',
+              'FLOORSMAX_MEDI': 'FLOORSMAX_MEDI',
+              'FLOORSMAX_MODE': 'FLOORSMAX_MODE',
+              'FLOORSMIN_MODE': 'FLOORSMIN_MODE',
+              'FLOORSMIN_AVG': 'FLOORSMIN_AVG',
+              'FLOORSMIN_MEDI': 'FLOORSMIN_MEDI',
+              'APARTMENTS_AVG': 'APARTMENTS_AVG',
+              'APARTMENTS_MEDI': 'APARTMENTS_MEDI',
+              'APARTMENTS_MODE': 'APARTMENTS_MODE',
+              'BASEMENTAREA_AVG': 'BASEMENTAREA_AVG',
+              'BASEMENTAREA_MEDI': 'BASEMENTAREA_MEDI',
+              'BASEMENTAREA_MODE': 'BASEMENTAREA_MODE',
+              'YEARS_BEGINEXPLUATATION_AVG': 'YEARS_BEGINEXPLUATATION_AVG',
+              'YEARS_BEGINEXPLUATATION_MODE': 'YEARS_BEGINEXPLUATATION_MODE',
+              'YEARS_BEGINEXPLUATATION_MEDI': 'YEARS_BEGINEXPLUATATION_MEDI',
+              'YEARS_BUILD_AVG': 'YEARS_BUILD_AVG',
+              'YEARS_BUILD_MODE': 'YEARS_BUILD_MODE',
+              'YEARS_BUILD_MEDI': 'YEARS_BUILD_MEDI',
+              'COMMONAREA_AVG': 'COMMONAREA_AVG',
+              'COMMONAREA_MEDI': 'COMMONAREA_MEDI',
+              'COMMONAREA_MODE': 'COMMONAREA_MODE',
+              'ELEVATORS_AVG': 'ELEVATORS_AVG',
+              'ELEVATORS_MODE': 'ELEVATORS_MODE',
+              'ELEVATORS_MEDI': 'ELEVATORS_MEDI',
+              'ENTRANCES_AVG': 'ENTRANCES_AVG',
+              'ENTRANCES_MODE': 'ENTRANCES_MODE',
+              'ENTRANCES_MEDI': 'ENTRANCES_MEDI',
+              'LANDAREA_AVG': 'LANDAREA_AVG',
+              'LANDAREA_MEDI': 'LANDAREA_MEDI',
+              'LANDAREA_MODE': 'LANDAREA_MODE',
+              'LIVINGAPARTMENTS_AVG': 'LIVINGAPARTMENTS_AVG',
+              'LIVINGAPARTMENTS_MODE': 'LIVINGAPARTMENTS_MODE',
+              'LIVINGAPARTMENTS_MEDI': 'LIVINGAPARTMENTS_MEDI',
+              'LIVINGAREA_AVG': 'LIVINGAREA_AVG',
+              'LIVINGAREA_MODE': 'LIVINGAREA_MODE',
+              'NONLIVINGAPARTMENTS_AVG': 'NONLIVINGAPARTMENTS_AVG',
+              'NONLIVINGAPARTMENTS_MODE': 'NONLIVINGAPARTMENTS_MODE',
+              'NONLIVINGAREA_AVG': 'NONLIVINGAREA_AVG',
+              'NONLIVINGAREA_MEDI': 'NONLIVINGAREA_MEDI',
+              'TOTALAREA_MODE': 'TOTALAREA_MODE',
+              'OBS_30_CNT_SOCIAL_CIRCLE': 'OBS_30_CNT_SOCIAL_CIRCLE',
+              'DEF_30_CNT_SOCIAL_CIRCLE': 'DEF_30_CNT_SOCIAL_CIRCLE',
+              'DEF_60_CNT_SOCIAL_CIRCLE': 'DEF_60_CNT_SOCIAL_CIRCLE',
+              'AMT_REQ_CREDIT_BUREAU_HOUR': 'AMT_REQ_CREDIT_BUREAU_HOUR',
+              'AMT_REQ_CREDIT_BUREAU_DAY': 'AMT_REQ_CREDIT_BUREAU_DAY',
+              'AMT_REQ_CREDIT_BUREAU_WEEK': 'AMT_REQ_CREDIT_BUREAU_WEEK',
+              'AMT_REQ_CREDIT_BUREAU_MON': 'AMT_REQ_CREDIT_BUREAU_MON',
+              'AMT_REQ_CREDIT_BUREAU_QRT': 'AMT_REQ_CREDIT_BUREAU_QRT',
+              'AMT_REQ_CREDIT_BUREAU_YEAR': 'AMT_REQ_CREDIT_BUREAU_YEAR',
+              'DAYS_ENDDATE_FACT': 'DAYS_ENDDATE_FACT'}
+
+path_img = "resources/images/stats/"
+   
+def affiche_stats():
+    ''' Affiche les statistiques générales provenant de l'EDA
+    '''
+    html_facteurs_influence="""
+        <div class="card">
+            <div class="card-body" style="border-radius: 10px 10px 0px 0px;
+                  background: #DEC7CB; padding-top: 5px; width: auto;
+                  height: 40px;">
+                  <h3 class="card-title" style="background-color:#DEC7CB; color:Crimson;
+                      font-family:Georgia; text-align: center; padding: 0px 0;">
+                      Distribution des variables générale/pour les défaillants
+                  </h3>
+            </div>
+        </div>
+        """
+    
+    # ====================== GRAPHIQUES COMPARANT CLIENT COURANT / CLIENTS SIMILAIRES =========================== 
+    if st.sidebar.checkbox("Voir les distributions"):     
+        
+        st.markdown(html_facteurs_influence, unsafe_allow_html=True)
+
+        with st.spinner('**Affiche les statistiques générales/pour les défaillants...**'):                 
+                       
+            with st.expander('Distribution des variables',
+                              expanded=True):
+                choix = st.selectbox("Choisir une variable : ", dico_stats.keys()) 
+                nom_img = dico_stats[choix]
+                img =  Image.open(path_img + nom_img + ".png")                     
+                st.image(img)       
+                
+st.sidebar.subheader('Stats générales')
+affiche_stats()
 
 
 # ====================================================================
