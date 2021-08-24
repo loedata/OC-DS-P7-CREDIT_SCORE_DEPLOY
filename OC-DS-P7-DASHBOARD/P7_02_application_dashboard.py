@@ -373,7 +373,7 @@ with st.container():
             st.error(score_text)
         st.write("")    
         st.markdown(f'Crédit score moyen des 10 clients similaires : **{score_moy_voisins_test}**')
-        st.markdown(f'**{pourc_def_voisins_train}**% de clients voisins rééllement défaillants dans l\'historique')
+        st.markdown(f'**{pourc_def_voisins_train}**% de clients voisins réellement défaillants dans l\'historique')
         st.markdown(f'**{pourc_def_voisins_test}**% de clients voisins défaillants prédits pour les nouveaux clients')
     
 # ====================================================================
