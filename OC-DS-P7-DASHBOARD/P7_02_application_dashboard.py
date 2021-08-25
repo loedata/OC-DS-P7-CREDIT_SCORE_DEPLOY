@@ -565,7 +565,7 @@ def infos_clients_similaires():
                         # Lineplot de comparaison des features importances client courant/voisins/all ================
                         plt.figure(figsize=(6, 6))
                         plt.plot(x_gp1, y_feat_client_gp1, color='Orange')
-                        plt.plot(x_gp1, y_moy_feat_voisins_gp3, color='Green')
+                        plt.plot(x_gp1, y_moy_feat_voisins_gp3, color='SteelBlue')
                         plt.plot(x_gp1, y_all_train_nondef_gp3, color='Green')
                         plt.plot(x_gp1, y_all_train_def_gp3, color='Crimson')
                         plt.xticks(rotation=90)
@@ -575,7 +575,7 @@ def infos_clients_similaires():
                         # Lineplot de comparaison des features importances client courant/voisins/all ================
                         plt.figure(figsize=(8, 5))
                         plt.plot(x_gp2, y_feat_client_gp2, color='Orange')
-                        plt.plot(x_gp2, y_moy_feat_voisins_gp4, color='Green')
+                        plt.plot(x_gp2, y_moy_feat_voisins_gp4, color='SteelBlue')
                         plt.plot(x_gp2, y_all_train_nondef_gp4, color='Green')
                         plt.plot(x_gp2, y_all_train_def_gp4, color='Crimson')
                         plt.xticks(rotation=90)
